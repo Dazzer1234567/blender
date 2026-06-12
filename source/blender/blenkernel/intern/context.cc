@@ -1004,6 +1004,12 @@ View3D *CTX_wm_view3d(const bContext *C)
   if (area && area->spacetype == SPACE_VIEW3D) {
     return static_cast<View3D *>(area->spacedata.first);
   }
+  /* Curve Designer embeds a View3D so the standard drawing/navigation
+   * pipeline works inside the design canvas. */
+  if (area && area->spacetype == SPACE_CURVE_DESIGNER) {
+    SpaceCurveDesigner *scd = static_cast<SpaceCurveDesigner *>(area->spacedata.first);
+    return scd ? scd->v3d : nullptr;
+  }
   return nullptr;
 }
 
@@ -1012,7 +1018,9 @@ RegionView3D *CTX_wm_region_view3d(const bContext *C)
   ScrArea *area = CTX_wm_area(C);
   ARegion *region = CTX_wm_region(C);
 
-  if (area && area->spacetype == SPACE_VIEW3D) {
+  if (area && (area->spacetype == SPACE_VIEW3D ||
+               area->spacetype == SPACE_CURVE_DESIGNER))
+  {
     if (region && region->regiontype == RGN_TYPE_WINDOW) {
       return static_cast<RegionView3D *>(region->regiondata);
     }

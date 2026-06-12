@@ -1099,6 +1099,11 @@ struct SpaceCurveDesigner {
   char link_flag = 0;
   char _pad0[6] = {};
   /* End 'SpaceLink' header. */
+
+  /** Embedded 3D viewport state. Owned by this space; allocated in
+   * curve_designer_create() and freed in curve_designer_free(). Reused
+   * by CTX_wm_view3d() so the standard 3D drawing pipeline works. */
+  struct View3D *v3d;
 };
 
 /** \} */

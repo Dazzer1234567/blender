@@ -86,7 +86,10 @@ void ViewOpsData::init_context(bContext *C)
   this->scene = CTX_data_scene(C);
   this->area = CTX_wm_area(C);
   this->region = CTX_wm_region(C);
-  this->v3d = static_cast<View3D *>(this->area->spacedata.first);
+  /* CTX_wm_view3d() understands both SPACE_VIEW3D and SPACE_CURVE_DESIGNER and
+   * returns the right embedded View3D for each. Casting spacedata.first to
+   * View3D* directly is only safe for SPACE_VIEW3D. */
+  this->v3d = CTX_wm_view3d(C);
   this->rv3d = static_cast<RegionView3D *>(this->region->regiondata);
 }
 

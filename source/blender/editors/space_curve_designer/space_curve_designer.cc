@@ -5,11 +5,13 @@
 /** \file
  * \ingroup spcurvedesigner
  *
- * Curve Designer editor (placeholder).
+ * Curve Designer editor.
  *
- * Minimal "hello world" space type providing the standard 2D canvas plumbing
- * (header + main viewport region with View2D + theme background) so future
- * work can drop in curve editing logic without rewiring the editor itself.
+ * The main region is a full 3D viewport reusing space_view3d's drawing and
+ * region-init pipelines. The space owns its own View3D (camera/lens/clip
+ * settings) and each window region owns its own RegionView3D (orbit state),
+ * matching the layout the 3D Viewport uses. CTX_wm_view3d() has been taught
+ * to return our space's View3D when called from inside this editor.
  */
 
 #include <cstring>
@@ -23,11 +25,13 @@
 #include "BKE_context.hh"
 #include "BKE_screen.hh"
 
+#include "DNA_view3d_types.h"
+
 #include "ED_screen.hh"
 #include "ED_space_api.hh"
+#include "ED_view3d.hh"
 
 #include "UI_resources.hh"
-#include "UI_view2d.hh"
 
 #include "BLO_read_write.hh"
 
@@ -38,107 +42,84 @@ namespace blender {
 
 /* ******************** default callbacks for curve designer space ***************** */
 
-static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene * /*scene*/)
+static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene *scene)
 {
-  ARegion *region;
-  SpaceCurveDesigner *scd;
-
-  scd = MEM_new<SpaceCurveDesigner>("init curve designer");
+  SpaceCurveDesigner *scd = MEM_new<SpaceCurveDesigner>("init curve designer");
   scd->spacetype = SPACE_CURVE_DESIGNER;
 
+  /* The space owns a View3D — this is what makes the main region behave as
+   * a 3D viewport (camera/lens/clipping/object visibility flags all live
+   * here). CTX_wm_view3d() is patched to find it. */
+  View3D *v3d = MEM_new<View3D>("init curve designer v3d");
+  if (scene) {
+    v3d->camera = scene->camera;
+  }
+  scd->v3d = v3d;
+
   /* header */
-  region = BKE_area_region_new();
+  ARegion *region = BKE_area_region_new();
   BLI_addtail(&scd->regionbase, region);
   region->regiontype = RGN_TYPE_HEADER;
   region->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
-  /* main region */
+  /* main region (3D viewport) */
   region = BKE_area_region_new();
   BLI_addtail(&scd->regionbase, region);
   region->regiontype = RGN_TYPE_WINDOW;
 
-  /* Sensible defaults for a 2D pannable/zoomable canvas (Illustrator-like). */
-  region->v2d.tot.xmin = -1000.0f;
-  region->v2d.tot.ymin = -1000.0f;
-  region->v2d.tot.xmax = 1000.0f;
-  region->v2d.tot.ymax = 1000.0f;
-  region->v2d.cur = region->v2d.tot;
-  region->v2d.min[0] = 1.0f;
-  region->v2d.min[1] = 1.0f;
-  region->v2d.max[0] = 32000.0f;
-  region->v2d.max[1] = 32000.0f;
-  region->v2d.minzoom = 0.01f;
-  region->v2d.maxzoom = 32.0f;
-  region->v2d.keepzoom = V2D_KEEPASPECT;
-  region->v2d.keeptot = 0;
+  /* Per-region 3D view state (orbit, distance, persp). Defaults match
+   * what space_view3d sets up in view3d_create(). */
+  RegionView3D *rv3d = MEM_new<RegionView3D>("curve designer region view3d");
+  rv3d->viewquat[0] = 1.0f;
+  rv3d->persp = RV3D_PERSP;
+  rv3d->view = RV3D_VIEW_USER;
+  rv3d->dist = 10.0f;
+  region->regiondata = rv3d;
 
   return reinterpret_cast<SpaceLink *>(scd);
 }
 
 /* Doesn't free the space-link itself. */
-static void curve_designer_free(SpaceLink * /*sl*/) {}
+static void curve_designer_free(SpaceLink *sl)
+{
+  SpaceCurveDesigner *scd = reinterpret_cast<SpaceCurveDesigner *>(sl);
+  if (scd->v3d) {
+    /* Mirror view3d_free()'s essential cleanup. localvd/runtime properties
+     * stay nullptr in our setup because we never populate them, but free
+     * them defensively to match upstream behaviour. */
+    if (scd->v3d->localvd) {
+      MEM_delete(scd->v3d->localvd);
+    }
+    if (scd->v3d->runtime.properties_storage_free) {
+      scd->v3d->runtime.properties_storage_free(scd->v3d->runtime.properties_storage);
+    }
+    MEM_delete(scd->v3d);
+    scd->v3d = nullptr;
+  }
+}
 
 /* spacetype; init callback */
 static void curve_designer_init(wmWindowManager * /*wm*/, ScrArea * /*area*/) {}
 
 static SpaceLink *curve_designer_duplicate(SpaceLink *sl)
 {
-  SpaceCurveDesigner *scd_new = MEM_dupalloc(reinterpret_cast<SpaceCurveDesigner *>(sl));
+  SpaceCurveDesigner *scd_old = reinterpret_cast<SpaceCurveDesigner *>(sl);
+  SpaceCurveDesigner *scd_new = MEM_dupalloc(scd_old);
 
-  /* Nothing to clear on duplicate yet. */
+  /* Deep-copy the View3D: otherwise the duplicated area would share v3d with
+   * the original and freeing either would leave a dangling pointer. The
+   * runtime sub-struct is plain data with no owning pointers we hold a
+   * lifetime on, so a shallow copy is fine here for now. */
+  if (scd_old->v3d) {
+    scd_new->v3d = MEM_dupalloc(scd_old->v3d);
+    /* Don't share localvd — that's a separately allocated nested View3D. */
+    scd_new->v3d->localvd = nullptr;
+  }
 
   return reinterpret_cast<SpaceLink *>(scd_new);
 }
 
-/* add handlers, stuff you only do once or on area/region changes */
-static void curve_designer_main_region_init(wmWindowManager * /*wm*/, ARegion *region)
-{
-  ui::view2d_region_reinit(&region->v2d, ui::V2D_COMMONVIEW_CUSTOM, region->winx, region->winy);
-}
-
-static void curve_designer_main_region_draw(const bContext *C, ARegion *region)
-{
-  View2D *v2d = &region->v2d;
-
-  /* Clear with theme background. */
-  ui::theme::frame_buffer_clear(TH_BACK);
-
-  /* Set up the 2D view matrix so future curve drawing uses canvas coordinates. */
-  ui::view2d_view_ortho(v2d);
-
-  /* TODO(curve_designer): draw curves here. */
-
-  ui::view2d_view_restore(C);
-}
-
-static void curve_designer_main_region_listener(const wmRegionListenerParams *params)
-{
-  ARegion *region = params->region;
-  const wmNotifier *wmn = params->notifier;
-
-  switch (wmn->category) {
-    case NC_SCENE:
-      ED_region_tag_redraw(region);
-      break;
-    case NC_OBJECT:
-      if (ELEM(wmn->data, ND_TRANSFORM, ND_DRAW)) {
-        ED_region_tag_redraw(region);
-      }
-      break;
-    case NC_GEOM:
-      ED_region_tag_redraw(region);
-      break;
-    case NC_WINDOW:
-      ED_region_tag_redraw(region);
-      break;
-  }
-}
-
-static void curve_designer_operatortypes() {}
-
-static void curve_designer_keymap(wmKeyConfig * /*keyconf*/) {}
-
-/* add handlers, stuff you only do once or on area/region changes */
+/* Header region callbacks — same as the empty placeholder. */
 static void curve_designer_header_region_init(wmWindowManager * /*wm*/, ARegion *region)
 {
   ED_region_header_init(region);
@@ -163,6 +144,10 @@ static void curve_designer_header_region_listener(const wmRegionListenerParams *
   }
 }
 
+static void curve_designer_operatortypes() {}
+
+static void curve_designer_keymap(wmKeyConfig * /*keyconf*/) {}
+
 static void curve_designer_space_blend_write(BlendWriter *writer, SpaceLink *sl)
 {
   writer->write_struct_cast<SpaceCurveDesigner>(sl);
@@ -184,13 +169,13 @@ void ED_spacetype_curve_designer()
   st->keymap = curve_designer_keymap;
   st->blend_write = curve_designer_space_blend_write;
 
-  /* regions: main window */
+  /* regions: main window — reuse the 3D Viewport's drawing pipeline. */
   art = MEM_new_zeroed<ARegionType>("spacetype curve designer main region");
   art->regionid = RGN_TYPE_WINDOW;
-  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES;
-  art->init = curve_designer_main_region_init;
-  art->draw = curve_designer_main_region_draw;
-  art->listener = curve_designer_main_region_listener;
+  /* Match what space_view3d sets for its main region. */
+  art->keymapflag = ED_KEYMAP_GIZMO | ED_KEYMAP_TOOL | ED_KEYMAP_GPENCIL;
+  art->init = view3d_main_region_init;
+  art->draw = view3d_main_region_draw;
 
   BLI_addhead(&st->regiontypes, art);
 

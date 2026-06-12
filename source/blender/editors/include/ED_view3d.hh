@@ -189,6 +189,29 @@ bool ED_view3d_camera_to_view_selected_with_set_clipping(Main *bmain,
  */
 void ED_view3d_lastview_store(RegionView3D *rv3d);
 
+/* ------------------------------------------------------------------------- */
+/** \name Region init/draw entry points reused by other space types
+ *
+ * These are the SpaceType.regiontypes RGN_TYPE_WINDOW init and draw callbacks
+ * used by the 3D Viewport. They are also used by the Curve Designer space so
+ * its main region behaves as a full 3D viewport.
+ * \{ */
+
+void view3d_main_region_init(wmWindowManager *wm, ARegion *region);
+void view3d_main_region_draw(const bContext *C, ARegion *region);
+
+/**
+ * Return the View3D embedded in an area, whether the area is a regular 3D
+ * Viewport (SPACE_VIEW3D, View3D is spacedata.first) or a Curve Designer
+ * (SPACE_CURVE_DESIGNER, View3D is reached via the SpaceCurveDesigner struct).
+ *
+ * Returns nullptr for any other space type. Use this in place of
+ * `(View3D *)area->spacedata.first` in code that may run inside Curve Designer.
+ */
+View3D *ED_view3d_from_area(const ScrArea *area);
+
+/** \} */
+
 /* Depth buffer */
 enum eV3DDepthOverrideMode {
   /** Redraw viewport with all objects. */

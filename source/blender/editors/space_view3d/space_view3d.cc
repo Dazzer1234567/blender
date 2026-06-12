@@ -82,6 +82,21 @@ namespace blender {
 
 /* ******************** manage regions ********************* */
 
+View3D *ED_view3d_from_area(const ScrArea *area)
+{
+  if (!area) {
+    return nullptr;
+  }
+  if (area->spacetype == SPACE_VIEW3D) {
+    return static_cast<View3D *>(area->spacedata.first);
+  }
+  if (area->spacetype == SPACE_CURVE_DESIGNER) {
+    SpaceCurveDesigner *scd = static_cast<SpaceCurveDesigner *>(area->spacedata.first);
+    return scd ? scd->v3d : nullptr;
+  }
+  return nullptr;
+}
+
 bool ED_view3d_area_user_region(const ScrArea *area, const View3D *v3d, ARegion **r_region)
 {
   RegionView3D *rv3d = nullptr;
@@ -326,7 +341,8 @@ static SpaceLink *view3d_duplicate(SpaceLink *sl)
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
-static void view3d_main_region_init(wmWindowManager *wm, ARegion *region)
+/* Public: called by Curve Designer too, see ED_view3d.hh. */
+void view3d_main_region_init(wmWindowManager *wm, ARegion *region)
 {
   ListBaseT<wmDropBox> *lb;
   wmKeyMap *keymap;
