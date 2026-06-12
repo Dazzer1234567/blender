@@ -108,6 +108,11 @@ const EnumPropertyItem rna_enum_space_type_items[] = {
      "Video Sequencer",
      "Non-linear editor for arranging and mixing scenes, video, audio, and effects"},
     {SPACE_CLIP, "CLIP_EDITOR", ICON_TRACKER, "Movie Clip Editor", "Motion tracking tools"},
+    {SPACE_CURVE_DESIGNER,
+     "CURVE_DESIGNER",
+     ICON_CURVE_DATA,
+     "Curve Designer",
+     "2D vector design canvas operating on curves"},
 
     /* Animation. */
     RNA_ENUM_ITEM_HEADING(N_("Animation"), nullptr),
@@ -759,6 +764,7 @@ static StructRNA *rna_Space_refine(PointerRNA *ptr)
     case SPACE_EMPTY:
     case SPACE_TOPBAR:
     case SPACE_STATUSBAR:
+    case SPACE_CURVE_DESIGNER:
       break;
   }
 
