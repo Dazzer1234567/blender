@@ -76,6 +76,7 @@ _modules = [
     "space_filebrowser",
     "space_graph",
     "space_image",
+    "space_curve_designer",
     "space_info",
     "space_nla",
     "space_node",
