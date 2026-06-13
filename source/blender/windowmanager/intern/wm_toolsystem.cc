@@ -107,8 +107,13 @@ bToolRef_Runtime *WM_toolsystem_runtime_from_context(const bContext *C)
 bToolRef *WM_toolsystem_ref_find(WorkSpace *workspace, const bToolKey *tkey)
 {
   BLI_assert((1 << tkey->space_type) & WM_TOOLSYSTEM_SPACE_MASK);
+  /* Curve Designer shares the 3D Viewport's tool storage so the active tool
+   * survives switching between the two spaces and gizmo polls find a matching
+   * tref. Alias by retrying lookup with SPACE_VIEW3D. */
+  const short lookup_space = (tkey->space_type == SPACE_CURVE_DESIGNER) ? SPACE_VIEW3D :
+                                                                          tkey->space_type;
   for (bToolRef &tref : workspace->tools) {
-    if ((tref.space_type == tkey->space_type) && (tref.mode == tkey->mode)) {
+    if ((tref.space_type == lookup_space) && (tref.mode == tkey->mode)) {
       return &tref;
     }
   }
@@ -746,6 +751,10 @@ int WM_toolsystem_mode_from_spacetype(const Scene *scene,
                                       int space_type)
 {
   int mode = -1;
+  /* Curve Designer shares 3D Viewport tool storage. */
+  if (space_type == SPACE_CURVE_DESIGNER) {
+    space_type = SPACE_VIEW3D;
+  }
   switch (space_type) {
     case SPACE_VIEW3D: {
       /* 'area' may be nullptr in this case. */
@@ -881,8 +890,11 @@ bool WM_toolsystem_refresh_screen_area(WorkSpace *workspace,
   area->runtime.tool = nullptr;
   area->runtime.is_tool_set = true;
   const int mode = WM_toolsystem_mode_from_spacetype(scene, view_layer, area, area->spacetype);
+  /* Curve Designer shares 3D Viewport tool storage. */
+  const short lookup_space = (area->spacetype == SPACE_CURVE_DESIGNER) ? SPACE_VIEW3D :
+                                                                         area->spacetype;
   for (bToolRef &tref : workspace->tools) {
-    if (tref.space_type == area->spacetype) {
+    if (tref.space_type == lookup_space) {
       if (tref.mode == mode) {
         area->runtime.tool = &tref;
         break;

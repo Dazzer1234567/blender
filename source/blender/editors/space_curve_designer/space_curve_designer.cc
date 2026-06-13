@@ -46,40 +46,47 @@ namespace blender {
 static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene *scene)
 {
   SpaceCurveDesigner *scd = MEM_new<SpaceCurveDesigner>("init curve designer");
-  scd->spacetype = SPACE_CURVE_DESIGNER;
+  /* SpaceCurveDesigner's first member IS the View3D — the spacetype field
+   * we set here is the SpaceLink header's spacetype, shared with View3D's
+   * own header. So this also makes (View3D *)scd cast safely. */
+  scd->v3d_base.spacetype = SPACE_CURVE_DESIGNER;
 
-  /* The space owns a View3D — this is what makes the main region behave as
-   * a 3D viewport (camera/lens/clipping/object visibility flags all live
-   * here). CTX_wm_view3d() is patched to find it. */
-  View3D *v3d = MEM_new<View3D>("init curve designer v3d");
+  View3D *v3d = &scd->v3d_base;
   if (scene) {
     v3d->camera = scene->camera;
   }
-  scd->v3d = v3d;
+  /* Defaults that startup.blend sets for fresh View3Ds but our explicit
+   * allocation doesn't pick up: enable all transform gizmos and the per-
+   * object-type gizmos so the toolbar's Move/Rotate/Scale handles show. */
+  v3d->gizmo_show_object = V3D_GIZMO_SHOW_OBJECT_TRANSLATE | V3D_GIZMO_SHOW_OBJECT_ROTATE |
+                            V3D_GIZMO_SHOW_OBJECT_SCALE;
+  v3d->gizmo_show_empty = V3D_GIZMO_SHOW_EMPTY_IMAGE | V3D_GIZMO_SHOW_EMPTY_FORCE_FIELD;
+  v3d->gizmo_show_light = V3D_GIZMO_SHOW_LIGHT_SIZE | V3D_GIZMO_SHOW_LIGHT_LOOK_AT;
+  v3d->gizmo_show_camera = V3D_GIZMO_SHOW_CAMERA_LENS | V3D_GIZMO_SHOW_CAMERA_DOF_DIST;
 
   /* header */
   ARegion *region = BKE_area_region_new();
-  BLI_addtail(&scd->regionbase, region);
+  BLI_addtail(&v3d->regionbase, region);
   region->regiontype = RGN_TYPE_HEADER;
   region->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
   /* tool shelf (T) */
   region = BKE_area_region_new();
-  BLI_addtail(&scd->regionbase, region);
+  BLI_addtail(&v3d->regionbase, region);
   region->regiontype = RGN_TYPE_TOOLS;
   region->alignment = RGN_ALIGN_LEFT;
   region->flag = RGN_FLAG_HIDDEN;
 
   /* sidebar / properties (N) */
   region = BKE_area_region_new();
-  BLI_addtail(&scd->regionbase, region);
+  BLI_addtail(&v3d->regionbase, region);
   region->regiontype = RGN_TYPE_UI;
   region->alignment = RGN_ALIGN_RIGHT;
   region->flag = RGN_FLAG_HIDDEN;
 
   /* main region (3D viewport) */
   region = BKE_area_region_new();
-  BLI_addtail(&scd->regionbase, region);
+  BLI_addtail(&v3d->regionbase, region);
   region->regiontype = RGN_TYPE_WINDOW;
 
   /* Per-region 3D view state (orbit, distance, persp). Defaults match
@@ -98,38 +105,45 @@ static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene *s
 static void curve_designer_free(SpaceLink *sl)
 {
   SpaceCurveDesigner *scd = reinterpret_cast<SpaceCurveDesigner *>(sl);
-  if (scd->v3d) {
-    /* Mirror view3d_free()'s essential cleanup. localvd/runtime properties
-     * stay nullptr in our setup because we never populate them, but free
-     * them defensively to match upstream behaviour. */
-    if (scd->v3d->localvd) {
-      MEM_delete(scd->v3d->localvd);
-    }
-    if (scd->v3d->runtime.properties_storage_free) {
-      scd->v3d->runtime.properties_storage_free(scd->v3d->runtime.properties_storage);
-    }
-    MEM_delete(scd->v3d);
-    scd->v3d = nullptr;
+  View3D *v3d = &scd->v3d_base;
+  /* Mirror view3d_free()'s essential cleanup. */
+  if (v3d->localvd) {
+    MEM_delete(v3d->localvd);
+    v3d->localvd = nullptr;
+  }
+  if (v3d->runtime.properties_storage_free) {
+    v3d->runtime.properties_storage_free(v3d->runtime.properties_storage);
+    v3d->runtime.properties_storage_free = nullptr;
   }
 }
 
 /* spacetype; init callback */
-static void curve_designer_init(wmWindowManager * /*wm*/, ScrArea * /*area*/) {}
+static void curve_designer_init(wmWindowManager * /*wm*/, ScrArea *area)
+{
+  /* Migration for areas saved before curve_designer_create() seeded the
+   * gizmo show flags. If they're all zero, populate sensible defaults so
+   * existing layouts still show transform handles. */
+  SpaceCurveDesigner *scd = static_cast<SpaceCurveDesigner *>(area->spacedata.first);
+  if (scd && scd->v3d_base.gizmo_show_object == 0 && scd->v3d_base.gizmo_show_empty == 0 &&
+      scd->v3d_base.gizmo_show_light == 0 && scd->v3d_base.gizmo_show_camera == 0)
+  {
+    scd->v3d_base.gizmo_show_object = V3D_GIZMO_SHOW_OBJECT_TRANSLATE |
+                                       V3D_GIZMO_SHOW_OBJECT_ROTATE | V3D_GIZMO_SHOW_OBJECT_SCALE;
+    scd->v3d_base.gizmo_show_empty = V3D_GIZMO_SHOW_EMPTY_IMAGE | V3D_GIZMO_SHOW_EMPTY_FORCE_FIELD;
+    scd->v3d_base.gizmo_show_light = V3D_GIZMO_SHOW_LIGHT_SIZE | V3D_GIZMO_SHOW_LIGHT_LOOK_AT;
+    scd->v3d_base.gizmo_show_camera = V3D_GIZMO_SHOW_CAMERA_LENS | V3D_GIZMO_SHOW_CAMERA_DOF_DIST;
+  }
+}
 
 static SpaceLink *curve_designer_duplicate(SpaceLink *sl)
 {
   SpaceCurveDesigner *scd_old = reinterpret_cast<SpaceCurveDesigner *>(sl);
   SpaceCurveDesigner *scd_new = MEM_dupalloc(scd_old);
 
-  /* Deep-copy the View3D: otherwise the duplicated area would share v3d with
-   * the original and freeing either would leave a dangling pointer. The
-   * runtime sub-struct is plain data with no owning pointers we hold a
-   * lifetime on, so a shallow copy is fine here for now. */
-  if (scd_old->v3d) {
-    scd_new->v3d = MEM_dupalloc(scd_old->v3d);
-    /* Don't share localvd — that's a separately allocated nested View3D. */
-    scd_new->v3d->localvd = nullptr;
-  }
+  /* v3d_base is inline, copied by MEM_dupalloc above. Clear the nested
+   * localvd pointer so the duplicate doesn't share it with the original
+   * (free would otherwise double-free). */
+  scd_new->v3d_base.localvd = nullptr;
 
   return reinterpret_cast<SpaceLink *>(scd_new);
 }

@@ -1541,6 +1541,7 @@ bool ED_region_is_overlap(const int spacetype, const int regiontype)
                   RGN_TYPE_ASSET_SHELF_HEADER);
 
     case SPACE_VIEW3D:
+    case SPACE_CURVE_DESIGNER:
       if (regiontype == RGN_TYPE_HEADER) {
         /* Only treat as overlapped if there is transparency. */
         bTheme *theme = ui::theme::theme_get();

@@ -1091,19 +1091,23 @@ struct SpaceStatusBar {
  * region->v2d, selection state will live here when added).
  * \{ */
 
+/**
+ * SpaceCurveDesigner is *structurally* a View3D with curve-design-specific
+ * fields appended after it. The first member is a full View3D so any code
+ * that casts `area->spacedata.first` to `View3D *` works for this space too —
+ * the memory layout is identical for the first sizeof(View3D) bytes.
+ *
+ * Inside create() we set `v3d_base.spacetype = SPACE_CURVE_DESIGNER` so the
+ * SpaceLink-header check in BKE_screen and friends correctly identifies the
+ * space. CTX_wm_view3d() and ED_view3d_from_area() just cast directly.
+ */
 struct SpaceCurveDesigner {
-  SpaceLink *next = nullptr, *prev = nullptr;
-  /** Storage of regions for inactive spaces. */
-  ListBaseT<ARegion> regionbase = {nullptr, nullptr};
-  char spacetype = 0;
-  char link_flag = 0;
-  char _pad0[6] = {};
-  /* End 'SpaceLink' header. */
+  /* This IS the SpaceLink header + the View3D body, in memory-layout
+   * order. View3D's own first members are: next, prev, regionbase,
+   * spacetype, link_flag, _pad0 — i.e. the SpaceLink header. */
+  View3D v3d_base;
 
-  /** Embedded 3D viewport state. Owned by this space; allocated in
-   * curve_designer_create() and freed in curve_designer_free(). Reused
-   * by CTX_wm_view3d() so the standard 3D drawing pipeline works. */
-  struct View3D *v3d;
+  /* (Curve-designer-specific fields go below this line in the future.) */
 };
 
 /** \} */

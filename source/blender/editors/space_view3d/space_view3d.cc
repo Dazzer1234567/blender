@@ -87,12 +87,10 @@ View3D *ED_view3d_from_area(const ScrArea *area)
   if (!area) {
     return nullptr;
   }
-  if (area->spacetype == SPACE_VIEW3D) {
+  /* SpaceCurveDesigner embeds View3D as its first member, so the cast is
+   * structurally safe for both spacetypes. */
+  if (area->spacetype == SPACE_VIEW3D || area->spacetype == SPACE_CURVE_DESIGNER) {
     return static_cast<View3D *>(area->spacedata.first);
-  }
-  if (area->spacetype == SPACE_CURVE_DESIGNER) {
-    SpaceCurveDesigner *scd = static_cast<SpaceCurveDesigner *>(area->spacedata.first);
-    return scd ? scd->v3d : nullptr;
   }
   return nullptr;
 }
@@ -482,9 +480,52 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *region)
   ED_view3d_stop_render_preview(wm, region);
 }
 
-static void view3d_widgets_for_spacetype(short spacetype)
+/* List of idnames of every 3D viewport gizmo group (persistent + tool-activated)
+ * that should also be linked into SPACE_CURVE_DESIGNER's gzmap. Kept in sync
+ * with the registrations below. We deliberately re-LINK existing gzgts (looked
+ * up by idname) rather than re-RUN their registrar functions — those have
+ * side effects (e.g. setting global g_GGT_* pointers) and calling them twice
+ * corrupts those globals, which breaks VIEW_3D's gizmos. */
+static const char *view3d_persistent_gizmo_group_idnames[] = {
+    /* Persistent — linked into VIEW_3D's gzmap via _and_link above. */
+    "VIEW3D_GGT_xform_gizmo_context",
+    "VIEW3D_GGT_light_spot",
+    "VIEW3D_GGT_light_point",
+    "VIEW3D_GGT_light_area",
+    "VIEW3D_GGT_light_target",
+    "VIEW3D_GGT_force_field",
+    "VIEW3D_GGT_camera",
+    "VIEW3D_GGT_camera_view",
+    "VIEW3D_GGT_empty_image",
+    "VIEW3D_GGT_geometry_nodes",
+    "VIEW3D_GGT_navigate",
+    /* Tool-activated — these are normally linked into VIEW_3D's gzmap at
+     * tool activation via WM_gizmo_group_type_ensure_ptr(). For Curve
+     * Designer we pre-link them so when a tool whose gzgt is one of these
+     * activates, the gzgroup gets created for our gzmap too. */
+    "VIEW3D_GGT_xform_gizmo",
+    "VIEW3D_GGT_xform_cage",
+    "VIEW3D_GGT_xform_shear",
+    "VIEW3D_GGT_xform_extrude",
+    "VIEW3D_GGT_mesh_preselect_elem",
+    "VIEW3D_GGT_mesh_preselect_edgering",
+    "VIEW3D_GGT_tool_generic_handle_normal",
+    "VIEW3D_GGT_tool_generic_handle_free",
+    "VIEW3D_GGT_ruler",
+    "VIEW3D_GGT_placement",
+    nullptr,
+};
+
+/* Public: called from ED_spacetype_view3d. Does the one-time global
+ * registration of every 3D-viewport gizmo group, links the persistent ones
+ * into VIEW_3D's gzmap, then re-links the same gzgts into
+ * SPACE_CURVE_DESIGNER's gzmap so they appear in Curve Designer areas too.
+ * Tool-activated gizmos (transform handles, etc.) are linked at tool-set
+ * time by patches in wm_toolsystem.cc and wm_event_system.cc. */
+void view3d_widgets()
 {
-  wmGizmoMapType_Params params{spacetype, RGN_TYPE_WINDOW};
+  /* VIEW_3D linkage — original behaviour. */
+  wmGizmoMapType_Params params{SPACE_VIEW3D, RGN_TYPE_WINDOW};
   wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(&params);
 
   WM_gizmogrouptype_append_and_link(gzmap_type, ed::transform::VIEW3D_GGT_xform_gizmo_context);
@@ -497,10 +538,6 @@ static void view3d_widgets_for_spacetype(short spacetype)
   WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_camera_view);
   WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_empty_image);
   WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_geometry_nodes);
-  /* TODO(@ideasman42): Not working well enough, disable for now. */
-#if 0
-  WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_armature_spline);
-#endif
 
   WM_gizmogrouptype_append(ed::transform::VIEW3D_GGT_xform_gizmo);
   WM_gizmogrouptype_append(ed::transform::VIEW3D_GGT_xform_cage);
@@ -518,14 +555,18 @@ static void view3d_widgets_for_spacetype(short spacetype)
 
   WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_navigate);
   WM_gizmotype_append(VIEW3D_GT_navigate_rotate);
-}
 
-/* Public: also called by SPACE_CURVE_DESIGNER so it inherits the 3D Viewport's
- * gizmos (navigate cube, transform handles, lights, etc.). */
-void view3d_widgets()
-{
-  view3d_widgets_for_spacetype(SPACE_VIEW3D);
-  view3d_widgets_for_spacetype(SPACE_CURVE_DESIGNER);
+  /* CURVE_DESIGNER linkage — re-link the same gzgts (by idname lookup) into
+   * its own gzmap. We deliberately do NOT call the registrar wtfuncs a
+   * second time, because they have side effects. */
+  wmGizmoMapType_Params cd_params{SPACE_CURVE_DESIGNER, RGN_TYPE_WINDOW};
+  wmGizmoMapType *cd_gzmap_type = WM_gizmomaptype_ensure(&cd_params);
+  for (const char **idname_ptr = view3d_persistent_gizmo_group_idnames; *idname_ptr; idname_ptr++) {
+    wmGizmoGroupType *gzgt = WM_gizmogrouptype_find(*idname_ptr, false);
+    if (gzgt) {
+      WM_gizmomaptype_group_link_ptr(cd_gzmap_type, gzgt);
+    }
+  }
 }
 
 /* type callback, not region itself */
@@ -586,7 +627,13 @@ void view3d_main_region_listener(const wmRegionListenerParams *params)
   ARegion *region = params->region;
   const wmNotifier *wmn = params->notifier;
   const Scene *scene = params->scene;
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
+  /* CTX/area helper: for SPACE_VIEW3D this is the same as spacedata.first;
+   * for SPACE_CURVE_DESIGNER it reaches through the SpaceCurveDesigner
+   * struct to the embedded View3D. Direct cast would crash for our space. */
+  View3D *v3d = ED_view3d_from_area(area);
+  if (!v3d) {
+    return;
+  }
   RegionView3D *rv3d = static_cast<RegionView3D *>(region->regiondata);
   wmGizmoMap *gzmap = region->runtime->gizmo_map;
 

@@ -1001,14 +1001,11 @@ ReportList *CTX_wm_reports(const bContext *C)
 View3D *CTX_wm_view3d(const bContext *C)
 {
   ScrArea *area = CTX_wm_area(C);
-  if (area && area->spacetype == SPACE_VIEW3D) {
+  /* SPACE_CURVE_DESIGNER's first spacedata member IS a View3D struct
+   * (SpaceCurveDesigner embeds it inline as `v3d_base`). So the cast is
+   * safe for both spacetypes. */
+  if (area && (area->spacetype == SPACE_VIEW3D || area->spacetype == SPACE_CURVE_DESIGNER)) {
     return static_cast<View3D *>(area->spacedata.first);
-  }
-  /* Curve Designer embeds a View3D so the standard drawing/navigation
-   * pipeline works inside the design canvas. */
-  if (area && area->spacetype == SPACE_CURVE_DESIGNER) {
-    SpaceCurveDesigner *scd = static_cast<SpaceCurveDesigner *>(area->spacedata.first);
-    return scd ? scd->v3d : nullptr;
   }
   return nullptr;
 }

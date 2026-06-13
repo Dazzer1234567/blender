@@ -33,6 +33,7 @@
 #include "ED_node.hh"
 #include "ED_transform_snap_object_context.hh"
 #include "ED_uvedit.hh"
+#include "ED_view3d.hh"
 
 #include "UI_resources.hh"
 #include "UI_view2d.hh"
@@ -886,7 +887,7 @@ void transform_snap_grid_init(const TransInfo *t, float r_snap[3], float *r_snap
   if (t->spacetype == SPACE_VIEW3D) {
     /* Used by incremental snap. */
     if (t->region->regiontype == RGN_TYPE_WINDOW) {
-      View3D *v3d = static_cast<View3D *>(t->area->spacedata.first);
+      View3D *v3d = ED_view3d_from_area(t->area);
       r_snap[0] = r_snap[1] = r_snap[2] = ED_view3d_grid_view_scale(
           t->scene, v3d, t->region, nullptr);
     }

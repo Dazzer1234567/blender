@@ -52,6 +52,7 @@
 #include "ED_object.hh"
 #include "ED_particle.hh"
 #include "ED_screen.hh"
+#include "ED_view3d.hh"
 
 #include "UI_resources.hh"
 
@@ -545,7 +546,7 @@ static int gizmo_3d_foreach_selected(const bContext *C,
    * Is it fine to possibly evaluate dependency graph here? */
   Depsgraph *depsgraph = CTX_data_expect_evaluated_depsgraph(C);
   ViewLayer *view_layer = CTX_data_view_layer(C);
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
+  View3D *v3d = ED_view3d_from_area(area);
   int a, totsel = 0;
 
   Object *ob = gizmo_3d_transform_space_object_get(scene, view_layer);
@@ -986,7 +987,7 @@ int calc_gizmo_stats(const bContext *C,
   ScrArea *area = CTX_wm_area(C);
   Scene *scene = CTX_data_scene(C);
   ViewLayer *view_layer = CTX_data_view_layer(C);
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
+  View3D *v3d = ED_view3d_from_area(area);
   int totsel = 0;
 
   const int pivot_point = scene->toolsettings->transform_pivot_point;
@@ -1280,7 +1281,7 @@ void gizmo_xform_message_subscribe(wmGizmoGroup *gzgroup,
   }
 
   PointerRNA view3d_ptr = RNA_pointer_create_discrete(
-      &screen->id, RNA_SpaceView3D, area->spacedata.first);
+      &screen->id, RNA_SpaceView3D, ED_view3d_from_area(area));
 
   if (type_fn == VIEW3D_GGT_xform_gizmo) {
     GizmoGroup *ggd = static_cast<GizmoGroup *>(gzgroup->customdata);
@@ -1967,7 +1968,7 @@ static void WIDGETGROUP_gizmo_refresh(const bContext *C, wmGizmoGroup *gzgroup)
   GizmoGroup *ggd = static_cast<GizmoGroup *>(gzgroup->customdata);
   Scene *scene = CTX_data_scene(C);
   ScrArea *area = CTX_wm_area(C);
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
+  View3D *v3d = ED_view3d_from_area(area);
   RegionView3D *rv3d = static_cast<RegionView3D *>(region->regiondata);
   TransformBounds tbounds;
 
@@ -2227,8 +2228,10 @@ static bool WIDGETGROUP_gizmo_poll_generic(View3D *v3d)
 static bool WIDGETGROUP_gizmo_poll_context(const bContext *C, wmGizmoGroupType * /*gzgt*/)
 {
   ScrArea *area = CTX_wm_area(C);
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
-  if (!WIDGETGROUP_gizmo_poll_generic(v3d)) {
+  /* ED_view3d_from_area handles SPACE_CURVE_DESIGNER (which embeds View3D in
+   * SpaceCurveDesigner, not at spacedata.first). Direct cast crashes for us. */
+  View3D *v3d = ED_view3d_from_area(area);
+  if (!v3d || !WIDGETGROUP_gizmo_poll_generic(v3d)) {
     return false;
   }
 
@@ -2256,8 +2259,9 @@ static bool WIDGETGROUP_gizmo_poll_tool(const bContext *C, wmGizmoGroupType *gzg
   }
 
   ScrArea *area = CTX_wm_area(C);
-  View3D *v3d = static_cast<View3D *>(area->spacedata.first);
-  if (!WIDGETGROUP_gizmo_poll_generic(v3d)) {
+  /* See WIDGETGROUP_gizmo_poll_context above. */
+  View3D *v3d = ED_view3d_from_area(area);
+  if (!v3d || !WIDGETGROUP_gizmo_poll_generic(v3d)) {
     return false;
   }
 

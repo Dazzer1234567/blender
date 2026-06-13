@@ -39,6 +39,7 @@
 #include "ED_screen.hh"
 #include "ED_space_api.hh"
 #include "ED_uvedit.hh"
+#include "ED_view3d.hh"
 
 #include "WM_api.hh"
 
@@ -69,7 +70,7 @@ void resetTransRestrictions(TransInfo *t)
 static void *t_view_get(TransInfo *t)
 {
   if (t->spacetype == SPACE_VIEW3D) {
-    View3D *v3d = static_cast<View3D *>(t->area->spacedata.first);
+    View3D *v3d = ED_view3d_from_area(t->area);
     return static_cast<void *>(v3d);
   }
   if (t->region) {

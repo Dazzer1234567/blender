@@ -232,6 +232,9 @@ class ToolSelectPanelHelper:
 
     @staticmethod
     def _tool_class_from_space_type(space_type):
+        # Curve Designer reuses the 3D Viewport's tool set.
+        if space_type == 'CURVE_DESIGNER':
+            space_type = 'VIEW_3D'
         return next(
             (cls for cls in ToolSelectPanelHelper.__subclasses__() if cls.bl_space_type == space_type),
             None,
@@ -453,7 +456,9 @@ class ToolSelectPanelHelper:
 
     @staticmethod
     def _tool_active_from_context(context, space_type, mode=None, create=False):
-        if space_type in {'VIEW_3D', 'PROPERTIES'}:
+        # Curve Designer reuses the 3D Viewport's tool set, so use the same
+        # per-workspace tool storage.
+        if space_type in {'VIEW_3D', 'PROPERTIES', 'CURVE_DESIGNER'}:
             if mode is None:
                 mode = context.mode
             tool = context.workspace.tools.from_space_view3d_mode(mode, create=create)
