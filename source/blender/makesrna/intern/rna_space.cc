@@ -759,12 +759,14 @@ static StructRNA *rna_Space_refine(PointerRNA *ptr)
     case SPACE_SPREADSHEET:
       return RNA_SpaceSpreadsheet;
 
+    case SPACE_CURVE_DESIGNER:
+      return RNA_SpaceCurveDesigner;
+
       /* Currently no type info. */
     case SPACE_SCRIPT:
     case SPACE_EMPTY:
     case SPACE_TOPBAR:
     case SPACE_STATUSBAR:
-    case SPACE_CURVE_DESIGNER:
       break;
   }
 
@@ -9301,6 +9303,21 @@ static void rna_def_space_spreadsheet(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_SPACE | ND_SPACE_SPREADSHEET, nullptr);
 }
 
+static void rna_def_space_curve_designer(BlenderRNA *brna)
+{
+  StructRNA *srna;
+
+  srna = RNA_def_struct(brna, "SpaceCurveDesigner", "Space");
+  RNA_def_struct_sdna(srna, "SpaceCurveDesigner");
+  RNA_def_struct_ui_text(
+      srna, "Curve Designer Space", "Curve Designer space data (2D vector design canvas)");
+
+  /* These are what N / T keybindings toggle via wm.context_toggle on
+   * `space_data.show_region_*`. Without these the keys silently do nothing. */
+  rna_def_space_generic_show_region_toggles(
+      srna, (1 << RGN_TYPE_TOOLS) | (1 << RGN_TYPE_UI) | (1 << RGN_TYPE_HUD));
+}
+
 void RNA_def_space(BlenderRNA *brna)
 {
   rna_def_space(brna);
@@ -9329,6 +9346,7 @@ void RNA_def_space(BlenderRNA *brna)
   rna_def_space_node(brna);
   rna_def_space_clip(brna);
   rna_def_space_spreadsheet(brna);
+  rna_def_space_curve_designer(brna);
 }
 
 }  // namespace blender

@@ -447,6 +447,58 @@ static StructRNA *rna_Panel_register(Main *bmain,
 
   WM_paneltype_add(pt);
 
+  /* Curve Designer mirror: also register VIEW_3D panels into
+   * SPACE_CURVE_DESIGNER's matching region so the same N-panel content shows
+   * up there. The clone PanelType shares rna_ext (Python class) with the
+   * original — it's just a second entry in a different ARegionType's
+   * paneltypes list. Parent/child relationships are reconstructed inside
+   * the clone's ARegionType (the parent has already been cloned if the
+   * Python script registered parent before child, which is the convention).
+   */
+  if (dummy_pt.space_type == SPACE_VIEW3D) {
+    ARegionType *art_cd = region_type_find(nullptr, SPACE_CURVE_DESIGNER, dummy_pt.region_type);
+    if (art_cd) {
+      PanelType *pt_clone = static_cast<PanelType *>(MEM_dupalloc(pt));
+      pt_clone->next = pt_clone->prev = nullptr;
+      pt_clone->parent = nullptr;
+      BLI_listbase_clear(&pt_clone->children);
+      if (pt->description) {
+        /* pt->description points into the trailing buffer of the original
+         * allocation; for the clone, point to the same string. Safe because
+         * the original outlives clones (clones never get unregistered
+         * independently). */
+        pt_clone->description = pt->description;
+      }
+
+      /* Find clone's parent in art_cd's paneltypes. */
+      if (pt->parent) {
+        for (PanelType *iter = static_cast<PanelType *>(art_cd->paneltypes.first); iter;
+             iter = iter->next)
+        {
+          if (STREQ(iter->idname, pt->parent->idname)) {
+            pt_clone->parent = iter;
+            BLI_addtail(&iter->children, BLI_genericNodeN(pt_clone));
+            break;
+          }
+        }
+      }
+
+      /* Insert maintaining order, same logic as the original above. */
+      PanelType *iter_cd = static_cast<PanelType *>(art_cd->paneltypes.last);
+      for (; iter_cd; iter_cd = iter_cd->prev) {
+        if ((pt_clone->flag & PANEL_TYPE_NO_HEADER) && !(iter_cd->flag & PANEL_TYPE_NO_HEADER)) {
+          continue;
+        }
+        if (iter_cd->order <= pt_clone->order) {
+          break;
+        }
+      }
+      BLI_insertlinkafter(&art_cd->paneltypes, iter_cd, pt_clone);
+
+      WM_paneltype_add(pt_clone);
+    }
+  }
+
   /* update while blender is running */
   WM_main_add_notifier(NC_WINDOW, nullptr);
 
@@ -921,6 +973,16 @@ static StructRNA *rna_Header_register(Main *bmain,
   ht->draw = (have_function[0]) ? header_draw : nullptr;
 
   BLI_addtail(&art->headertypes, ht);
+
+  /* Curve Designer mirror — see rna_Panel_register for the rationale. */
+  if (dummy_ht.space_type == SPACE_VIEW3D) {
+    ARegionType *art_cd = region_type_find(nullptr, SPACE_CURVE_DESIGNER, dummy_ht.region_type);
+    if (art_cd) {
+      HeaderType *ht_clone = static_cast<HeaderType *>(MEM_dupalloc(ht));
+      ht_clone->next = ht_clone->prev = nullptr;
+      BLI_addtail(&art_cd->headertypes, ht_clone);
+    }
+  }
 
   /* update while blender is running */
   WM_main_add_notifier(NC_WINDOW, nullptr);

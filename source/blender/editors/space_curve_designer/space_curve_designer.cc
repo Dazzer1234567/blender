@@ -31,6 +31,7 @@
 #include "ED_space_api.hh"
 #include "ED_view3d.hh"
 
+#include "UI_interface_c.hh"
 #include "UI_resources.hh"
 
 #include "BLO_read_write.hh"
@@ -61,6 +62,20 @@ static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene *s
   BLI_addtail(&scd->regionbase, region);
   region->regiontype = RGN_TYPE_HEADER;
   region->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
+
+  /* tool shelf (T) */
+  region = BKE_area_region_new();
+  BLI_addtail(&scd->regionbase, region);
+  region->regiontype = RGN_TYPE_TOOLS;
+  region->alignment = RGN_ALIGN_LEFT;
+  region->flag = RGN_FLAG_HIDDEN;
+
+  /* sidebar / properties (N) */
+  region = BKE_area_region_new();
+  BLI_addtail(&scd->regionbase, region);
+  region->regiontype = RGN_TYPE_UI;
+  region->alignment = RGN_ALIGN_RIGHT;
+  region->flag = RGN_FLAG_HIDDEN;
 
   /* main region (3D viewport) */
   region = BKE_area_region_new();
@@ -176,6 +191,7 @@ void ED_spacetype_curve_designer()
   art->keymapflag = ED_KEYMAP_GIZMO | ED_KEYMAP_TOOL | ED_KEYMAP_GPENCIL;
   art->init = view3d_main_region_init;
   art->draw = view3d_main_region_draw;
+  art->listener = view3d_main_region_listener;
 
   BLI_addhead(&st->regiontypes, art);
 
@@ -189,6 +205,31 @@ void ED_spacetype_curve_designer()
   art->draw = ED_region_header_draw;
   art->listener = curve_designer_header_region_listener;
 
+  BLI_addhead(&st->regiontypes, art);
+
+  /* regions: buttons/list view (N panel) — reuse view3d's. */
+  art = MEM_new_zeroed<ARegionType>("spacetype curve designer buttons region");
+  art->regionid = RGN_TYPE_UI;
+  art->prefsizex = UI_SIDEBAR_PANEL_WIDTH;
+  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
+  art->listener = view3d_buttons_region_listener;
+  art->init = view3d_buttons_region_init;
+  art->layout = view3d_buttons_region_layout;
+  art->draw = ED_region_panels_draw;
+  art->snap_size = ED_region_generic_panel_region_snap_size;
+  BLI_addhead(&st->regiontypes, art);
+  view3d_buttons_register(art);
+
+  /* regions: tool(bar) — reuse view3d's. */
+  art = MEM_new_zeroed<ARegionType>("spacetype curve designer tools region");
+  art->regionid = RGN_TYPE_TOOLS;
+  art->prefsizex = int(UI_TOOLBAR_WIDTH);
+  art->prefsizey = 50;
+  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
+  art->listener = view3d_buttons_region_listener;
+  art->init = view3d_tools_region_init;
+  art->draw = view3d_tools_region_draw;
+  art->snap_size = ED_region_generic_tools_region_snap_size;
   BLI_addhead(&st->regiontypes, art);
 
   BKE_spacetype_register(std::move(st));

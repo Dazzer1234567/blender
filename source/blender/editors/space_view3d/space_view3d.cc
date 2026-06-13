@@ -482,9 +482,9 @@ static void view3d_main_region_exit(wmWindowManager *wm, ARegion *region)
   ED_view3d_stop_render_preview(wm, region);
 }
 
-static void view3d_widgets()
+static void view3d_widgets_for_spacetype(short spacetype)
 {
-  wmGizmoMapType_Params params{SPACE_VIEW3D, RGN_TYPE_WINDOW};
+  wmGizmoMapType_Params params{spacetype, RGN_TYPE_WINDOW};
   wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(&params);
 
   WM_gizmogrouptype_append_and_link(gzmap_type, ed::transform::VIEW3D_GGT_xform_gizmo_context);
@@ -518,6 +518,14 @@ static void view3d_widgets()
 
   WM_gizmogrouptype_append_and_link(gzmap_type, VIEW3D_GGT_navigate);
   WM_gizmotype_append(VIEW3D_GT_navigate_rotate);
+}
+
+/* Public: also called by SPACE_CURVE_DESIGNER so it inherits the 3D Viewport's
+ * gizmos (navigate cube, transform handles, lights, etc.). */
+void view3d_widgets()
+{
+  view3d_widgets_for_spacetype(SPACE_VIEW3D);
+  view3d_widgets_for_spacetype(SPACE_CURVE_DESIGNER);
 }
 
 /* type callback, not region itself */
@@ -570,7 +578,8 @@ static void *view3d_main_region_duplicate(void *poin)
   return nullptr;
 }
 
-static void view3d_main_region_listener(const wmRegionListenerParams *params)
+/* Public: also used by SPACE_CURVE_DESIGNER, see ED_view3d.hh. */
+void view3d_main_region_listener(const wmRegionListenerParams *params)
 {
   wmWindow *window = params->window;
   ScrArea *area = params->area;
@@ -991,7 +1000,7 @@ static void view3d_main_region_cursor(wmWindow *win, ScrArea *area, ARegion *reg
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
-static void view3d_header_region_init(wmWindowManager *wm, ARegion *region)
+/* Public */ void view3d_header_region_init(wmWindowManager *wm, ARegion *region)
 {
   wmKeyMap *keymap = WM_keymap_ensure(
       wm->runtime->defaultconf, "3D View Generic", SPACE_VIEW3D, RGN_TYPE_WINDOW);
@@ -1001,7 +1010,7 @@ static void view3d_header_region_init(wmWindowManager *wm, ARegion *region)
   ED_region_header_init(region);
 }
 
-static void view3d_header_region_draw(const bContext *C, ARegion *region)
+/* Public */ void view3d_header_region_draw(const bContext *C, ARegion *region)
 {
   ED_region_header(C, region);
 }
@@ -1139,7 +1148,7 @@ static void view3d_header_region_message_subscribe(const wmRegionMessageSubscrib
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
-static void view3d_buttons_region_init(wmWindowManager *wm, ARegion *region)
+/* Public */ void view3d_buttons_region_init(wmWindowManager *wm, ARegion *region)
 {
   wmKeyMap *keymap;
 
@@ -1279,12 +1288,12 @@ void ED_view3d_buttons_region_layout_ex(const bContext *C,
       C, region, paneltypes, wm::OpCallContext::InvokeRegionWin, contexts_base, category_override);
 }
 
-static void view3d_buttons_region_layout(const bContext *C, ARegion *region)
+/* Public */ void view3d_buttons_region_layout(const bContext *C, ARegion *region)
 {
   ED_view3d_buttons_region_layout_ex(C, region, nullptr);
 }
 
-static void view3d_buttons_region_listener(const wmRegionListenerParams *params)
+/* Public */ void view3d_buttons_region_listener(const wmRegionListenerParams *params)
 {
   ARegion *region = params->region;
   const wmNotifier *wmn = params->notifier;
@@ -1393,7 +1402,7 @@ static void view3d_buttons_region_listener(const wmRegionListenerParams *params)
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
-static void view3d_tools_region_init(wmWindowManager *wm, ARegion *region)
+/* Public */ void view3d_tools_region_init(wmWindowManager *wm, ARegion *region)
 {
   wmKeyMap *keymap;
 
@@ -1406,7 +1415,7 @@ static void view3d_tools_region_init(wmWindowManager *wm, ARegion *region)
   WM_event_add_keymap_handler(&region->runtime->handlers, keymap);
 }
 
-static void view3d_tools_region_draw(const bContext *C, ARegion *region)
+/* Public */ void view3d_tools_region_draw(const bContext *C, ARegion *region)
 {
   const char *contexts[] = {CTX_data_mode_string(C), nullptr};
   ED_region_panels_ex(C, region, wm::OpCallContext::InvokeRegionWin, contexts);

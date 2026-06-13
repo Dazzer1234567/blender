@@ -19,6 +19,7 @@ namespace blender {
 
 /* ********* exports for space_view3d/ module ********** */
 struct ARegion;
+struct ARegionType;
 struct BMEdge;
 struct BMElem;
 struct BMEditMesh;
@@ -57,6 +58,7 @@ struct wmEvent;
 struct wmGizmo;
 struct wmKeyMapItem;
 struct wmOperator;
+struct wmRegionListenerParams;
 struct wmWindow;
 struct wmWindowManager;
 namespace ed::transform {
@@ -199,6 +201,20 @@ void ED_view3d_lastview_store(RegionView3D *rv3d);
 
 void view3d_main_region_init(wmWindowManager *wm, ARegion *region);
 void view3d_main_region_draw(const bContext *C, ARegion *region);
+void view3d_main_region_listener(const wmRegionListenerParams *params);
+
+void view3d_header_region_init(wmWindowManager *wm, ARegion *region);
+void view3d_header_region_draw(const bContext *C, ARegion *region);
+
+void view3d_buttons_region_init(wmWindowManager *wm, ARegion *region);
+void view3d_buttons_region_layout(const bContext *C, ARegion *region);
+void view3d_buttons_region_listener(const wmRegionListenerParams *params);
+
+void view3d_tools_region_init(wmWindowManager *wm, ARegion *region);
+void view3d_tools_region_draw(const bContext *C, ARegion *region);
+
+/** Register VIEW_3D panel types ("Item", "Tool", etc.) onto an ARegionType. */
+void view3d_buttons_register(ARegionType *art);
 
 /**
  * Return the View3D embedded in an area, whether the area is a regular 3D

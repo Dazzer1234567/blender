@@ -288,7 +288,9 @@ static bool ed_spacetype_test(bContext *C, int type)
 
 bool ED_operator_view3d_active(bContext *C)
 {
-  return ed_spacetype_test(C, SPACE_VIEW3D);
+  /* Accept Curve Designer too — it embeds a View3D and reuses the 3D
+   * Viewport drawing/navigation pipeline. */
+  return ed_spacetype_test(C, SPACE_VIEW3D) || ed_spacetype_test(C, SPACE_CURVE_DESIGNER);
 }
 
 bool ED_operator_region_view3d_active(bContext *C)
