@@ -26,6 +26,7 @@
 #include "ED_screen.hh"
 #include "ED_space_api.hh"
 
+#include "UI_interface_c.hh"
 #include "UI_resources.hh"
 #include "UI_view2d.hh"
 
@@ -51,6 +52,15 @@ static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene * 
   BLI_addtail(&scd->regionbase, region);
   region->regiontype = RGN_TYPE_HEADER;
   region->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
+
+  /* sidebar / properties (N-panel) — starts hidden; user opens it
+   * with the N key. Hosts the Layers list and any per-selection
+   * properties Python panels register against this space. */
+  region = BKE_area_region_new();
+  BLI_addtail(&scd->regionbase, region);
+  region->regiontype = RGN_TYPE_UI;
+  region->alignment = RGN_ALIGN_RIGHT;
+  region->flag = RGN_FLAG_HIDDEN;
 
   /* main region */
   region = BKE_area_region_new();
@@ -203,6 +213,19 @@ void ED_spacetype_curve_designer()
   art->layout = ED_region_header_layout;
   art->draw = ED_region_header_draw;
   art->listener = curve_designer_header_region_listener;
+
+  BLI_addhead(&st->regiontypes, art);
+
+  /* regions: sidebar / N-panel — RGN_TYPE_UI is where Python panels
+   * with `bl_region_type = 'UI'` render. The Layers list and any
+   * per-selection property panels live here. ED_region_panels_*
+   * handles all the layout work; we just register the slot. */
+  art = MEM_new_zeroed<ARegionType>("spacetype curve designer ui region");
+  art->regionid = RGN_TYPE_UI;
+  art->prefsizex = UI_SIDEBAR_PANEL_WIDTH;
+  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
+  art->init = ED_region_panels_init;
+  art->draw = ED_region_panels;
 
   BLI_addhead(&st->regiontypes, art);
 
