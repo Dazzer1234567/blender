@@ -5,11 +5,14 @@
 /** \file
  * \ingroup spcurvedesigner
  *
- * Curve Designer editor (placeholder).
+ * Curve Designer editor.
  *
- * Minimal "hello world" space type providing the standard 2D canvas plumbing
- * (header + main viewport region with View2D + theme background) so future
- * work can drop in curve editing logic without rewiring the editor itself.
+ * A panels-only editor (no canvas, no sidebar) — the WINDOW region
+ * IS the panels area, so Python panels with `bl_region_type='WINDOW'`
+ * fill the editor. The Layers UIList (the addon's space_curve_designer
+ * module) is the primary content. Designed as a thin shell — no
+ * editor-specific drawing or interaction in C beyond hosting Blender's
+ * standard panel layout, header, and per-region listener for redraws.
  */
 
 #include <cstring>
@@ -26,9 +29,7 @@
 #include "ED_screen.hh"
 #include "ED_space_api.hh"
 
-#include "UI_interface_c.hh"
 #include "UI_resources.hh"
-#include "UI_view2d.hh"
 
 #include "BLO_read_write.hh"
 
@@ -53,34 +54,12 @@ static SpaceLink *curve_designer_create(const ScrArea * /*area*/, const Scene * 
   region->regiontype = RGN_TYPE_HEADER;
   region->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
-  /* sidebar / properties (N-panel) — starts hidden; user opens it
-   * with the N key. Hosts the Layers list and any per-selection
-   * properties Python panels register against this space. */
-  region = BKE_area_region_new();
-  BLI_addtail(&scd->regionbase, region);
-  region->regiontype = RGN_TYPE_UI;
-  region->alignment = RGN_ALIGN_RIGHT;
-  region->flag = RGN_FLAG_HIDDEN;
-
-  /* main region */
+  /* main region — hosts Blender's standard panel layout
+   * (ED_region_panels). The Layers UIList lives here. No View2D
+   * canvas, no sidebar — the editor IS the layers list. */
   region = BKE_area_region_new();
   BLI_addtail(&scd->regionbase, region);
   region->regiontype = RGN_TYPE_WINDOW;
-
-  /* Sensible defaults for a 2D pannable/zoomable canvas (Illustrator-like). */
-  region->v2d.tot.xmin = -1000.0f;
-  region->v2d.tot.ymin = -1000.0f;
-  region->v2d.tot.xmax = 1000.0f;
-  region->v2d.tot.ymax = 1000.0f;
-  region->v2d.cur = region->v2d.tot;
-  region->v2d.min[0] = 1.0f;
-  region->v2d.min[1] = 1.0f;
-  region->v2d.max[0] = 32000.0f;
-  region->v2d.max[1] = 32000.0f;
-  region->v2d.minzoom = 0.01f;
-  region->v2d.maxzoom = 32.0f;
-  region->v2d.keepzoom = V2D_KEEPASPECT;
-  region->v2d.keeptot = 0;
 
   return reinterpret_cast<SpaceLink *>(scd);
 }
@@ -98,27 +77,6 @@ static SpaceLink *curve_designer_duplicate(SpaceLink *sl)
   /* Nothing to clear on duplicate yet. */
 
   return reinterpret_cast<SpaceLink *>(scd_new);
-}
-
-/* add handlers, stuff you only do once or on area/region changes */
-static void curve_designer_main_region_init(wmWindowManager * /*wm*/, ARegion *region)
-{
-  ui::view2d_region_reinit(&region->v2d, ui::V2D_COMMONVIEW_CUSTOM, region->winx, region->winy);
-}
-
-static void curve_designer_main_region_draw(const bContext *C, ARegion *region)
-{
-  View2D *v2d = &region->v2d;
-
-  /* Clear with theme background. */
-  ui::theme::frame_buffer_clear(TH_BACK);
-
-  /* Set up the 2D view matrix so future curve drawing uses canvas coordinates. */
-  ui::view2d_view_ortho(v2d);
-
-  /* TODO(curve_designer): draw curves here. */
-
-  ui::view2d_view_restore(C);
 }
 
 static void curve_designer_main_region_listener(const wmRegionListenerParams *params)
@@ -146,7 +104,15 @@ static void curve_designer_main_region_listener(const wmRegionListenerParams *pa
 
 static void curve_designer_operatortypes() {}
 
-static void curve_designer_keymap(wmKeyConfig * /*keyconf*/) {}
+static void curve_designer_keymap(wmKeyConfig *keyconf)
+{
+  /* Per-space keymap. Empty for now — Layers UIList interactions
+   * come through standard panel widget handling and don't need
+   * custom bindings. Future Layers operators (e.g. duplicate,
+   * delete by Del key) can register here. */
+  WM_keymap_ensure(keyconf, "Window", SPACE_EMPTY, RGN_TYPE_WINDOW);
+  WM_keymap_ensure(keyconf, "Curve Designer", SPACE_CURVE_DESIGNER, RGN_TYPE_WINDOW);
+}
 
 /* add handlers, stuff you only do once or on area/region changes */
 static void curve_designer_header_region_init(wmWindowManager * /*wm*/, ARegion *region)
@@ -194,12 +160,12 @@ void ED_spacetype_curve_designer()
   st->keymap = curve_designer_keymap;
   st->blend_write = curve_designer_space_blend_write;
 
-  /* regions: main window */
+  /* regions: main window — panel-host. Layers UIList renders here. */
   art = MEM_new_zeroed<ARegionType>("spacetype curve designer main region");
   art->regionid = RGN_TYPE_WINDOW;
-  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES;
-  art->init = curve_designer_main_region_init;
-  art->draw = curve_designer_main_region_draw;
+  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
+  art->init = ED_region_panels_init;
+  art->draw = ED_region_panels;
   art->listener = curve_designer_main_region_listener;
 
   BLI_addhead(&st->regiontypes, art);
@@ -208,24 +174,11 @@ void ED_spacetype_curve_designer()
   art = MEM_new_zeroed<ARegionType>("spacetype curve designer header region");
   art->regionid = RGN_TYPE_HEADER;
   art->prefsizey = HEADERY;
-  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_VIEW2D | ED_KEYMAP_FRAMES | ED_KEYMAP_HEADER;
+  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES | ED_KEYMAP_HEADER;
   art->init = curve_designer_header_region_init;
   art->layout = ED_region_header_layout;
   art->draw = ED_region_header_draw;
   art->listener = curve_designer_header_region_listener;
-
-  BLI_addhead(&st->regiontypes, art);
-
-  /* regions: sidebar / N-panel — RGN_TYPE_UI is where Python panels
-   * with `bl_region_type = 'UI'` render. The Layers list and any
-   * per-selection property panels live here. ED_region_panels_*
-   * handles all the layout work; we just register the slot. */
-  art = MEM_new_zeroed<ARegionType>("spacetype curve designer ui region");
-  art->regionid = RGN_TYPE_UI;
-  art->prefsizex = UI_SIDEBAR_PANEL_WIDTH;
-  art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
-  art->init = ED_region_panels_init;
-  art->draw = ED_region_panels;
 
   BLI_addhead(&st->regiontypes, art);
 
