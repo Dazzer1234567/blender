@@ -1438,6 +1438,16 @@ static void rna_UILayout_alert_set(PointerRNA *ptr, bool value)
   ptr->data_as<Layout>()->red_alert_set(value);
 }
 
+static void rna_UILayout_color_get(PointerRNA *ptr, float *values)
+{
+  ptr->data_as<const Layout>()->bg_color_get(values);
+}
+
+static void rna_UILayout_color_set(PointerRNA *ptr, const float *values)
+{
+  ptr->data_as<Layout>()->bg_color_set(values);
+}
+
 static void rna_UILayout_op_context_set(PointerRNA *ptr, int value)
 {
   ptr->data_as<Layout>()->operator_context_set(wm::OpCallContext(value));
@@ -1754,6 +1764,16 @@ static void rna_def_ui_layout(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "alert", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_funcs(prop, "rna_UILayout_alert_get", "rna_UILayout_alert_set");
+
+  /* Fork addition — per-layout background tint (RGBA). Alpha=0 disables. */
+  prop = RNA_def_property(srna, "color", PROP_FLOAT, PROP_COLOR);
+  RNA_def_property_array(prop, 4);
+  RNA_def_property_range(prop, 0.0f, 1.0f);
+  RNA_def_property_float_funcs(prop, "rna_UILayout_color_get", "rna_UILayout_color_set", nullptr);
+  RNA_def_property_ui_text(
+      prop,
+      "Background Color",
+      "Per-layout background tint (RGBA). Alpha 0 disables the tint");
 
   prop = RNA_def_property(srna, "alignment", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_items(prop, alignment_items);

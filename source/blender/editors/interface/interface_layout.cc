@@ -5571,6 +5571,18 @@ void LayoutInternal::layout_add_but(Layout *layout, Button *but)
   but->layout = layout;
   but->search_weight = layout->search_weight_;
 
+  /* Fork addition: inherit the per-row background tint from the
+   * Python-set `row.color`. Copying here means we don't need the
+   * Layout pointer at draw time (it'll be freed). */
+  {
+    float bg[4];
+    layout->bg_color_get(bg);
+    but->bg_color[0] = bg[0];
+    but->bg_color[1] = bg[1];
+    but->bg_color[2] = bg[2];
+    but->bg_color[3] = bg[3];
+  }
+
   if (layout->context_) {
     but->context = layout->context_;
     layout->context_->used = true;

@@ -194,6 +194,12 @@ struct Button {
   int drawflag = 0;
   char flag2 = 0;
 
+  /** Fork addition — per-button row tint copied from the parent
+   * Layout's `bg_color_` (set by Python `row.color = (r,g,b,a)`).
+   * Alpha 0 = no tint (default). Painted as a rectangle behind the
+   * button in `block_draw` before the widget itself is drawn. */
+  float bg_color[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
   ButtonType type = ButtonType(0);
   ButPointerType pointype = ButPointerType::None;
   bool bit = 0;

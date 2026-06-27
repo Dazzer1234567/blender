@@ -41,6 +41,7 @@
 #include "BKE_screen.hh"
 #include "BKE_unit.hh"
 
+#include "GPU_immediate.hh"
 #include "GPU_matrix.hh"
 #include "GPU_state.hh"
 
@@ -2296,6 +2297,40 @@ void block_draw(const bContext *C, Block *block)
     const int ymin = rect.ymin + ((block->flag & BLOCK_CLIPBOTTOM) ? arrow_size : 0.0f);
     GPU_scissor(rect.xmin, ymin, BLI_rcti_size_x(&rect), ymax - ymin);
   }
+  /* Fork addition: paint per-button background tint (Button.bg_color
+   * copied from the parent Layout's `row.color` at button creation
+   * time). Walk buttons once: paint each tinted button's rect before
+   * the widget itself is drawn (so the widget renders on top). */
+  {
+    bool any_tinted = false;
+    for (const std::unique_ptr<Button> &but : block->buttons) {
+      if (but->bg_color[3] > 0.0f) {
+        any_tinted = true;
+        break;
+      }
+    }
+    if (any_tinted) {
+      const uint pos = GPU_vertformat_attr_add(
+          immVertexFormat(), "pos", blender::gpu::VertAttrType::SFLOAT_32_32);
+      immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
+      GPU_blend(GPU_BLEND_ALPHA);
+      rcti br;
+      for (const std::unique_ptr<Button> &but : block->buttons) {
+        if (but->flag & (UI_HIDDEN | UI_SCROLLED)) {
+          continue;
+        }
+        if (but->bg_color[3] <= 0.0f) {
+          continue;
+        }
+        button_to_pixelrect(&br, region, block, but.get());
+        immUniformColor4fv(but->bg_color);
+        immRectf(pos, float(br.xmin), float(br.ymin), float(br.xmax), float(br.ymax));
+      }
+      immUnbindProgram();
+      GPU_blend(GPU_BLEND_NONE);
+    }
+  }
+
   /* widgets */
   for (const std::unique_ptr<Button> &but : block->buttons) {
     if (but->flag & (UI_HIDDEN | UI_SCROLLED)) {

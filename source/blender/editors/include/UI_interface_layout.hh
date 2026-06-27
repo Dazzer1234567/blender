@@ -137,6 +137,12 @@ struct Layout : public Item, NonCopyable, NonMovable {
   bool activate_init_ = false;
   bool enabled_ = false;
   bool redalert_ = false;
+  /** Fork addition: optional per-layout background tint, RGBA. Alpha=0
+   * means "no override" (current default behaviour). When alpha>0 the
+   * paint pass in `block_draw` fills the layout's rect with this colour
+   * before drawing the contained buttons — used by the Curve Designer
+   * Layers panel to mark selected layer/group rows. */
+  float bg_color_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   /** For layouts inside grid-flow, they and their items shall never have a fixed maximal size. */
   bool variable_size_ = false;
   LayoutAlign alignment_ = {};
@@ -218,6 +224,11 @@ struct Layout : public Item, NonCopyable, NonMovable {
    */
   void red_alert_set(bool red_alert);
 
+  /** Fork addition — get/set the per-layout background tint (RGBA, 0..1).
+   * Alpha=0 disables the tint (default). */
+  void bg_color_get(float r_color[4]) const;
+  void bg_color_set(const float color[4]);
+
   [[nodiscard]] Panel *root_panel() const;
 
   [[nodiscard]] float scale_x() const;
@@ -251,6 +262,13 @@ struct Layout : public Item, NonCopyable, NonMovable {
   void use_property_decorate_set(bool is_sep);
 
   [[nodiscard]] int width() const;
+
+  /** Fork addition — solved pixel rect (block-local coordinates).
+   * Valid after `layout_resolve`; used by the per-layout background
+   * tint pass in `block_draw`. */
+  [[nodiscard]] int x() const { return x_; }
+  [[nodiscard]] int y() const { return y_; }
+  [[nodiscard]] int h() const { return h_; }
 
   /** Sub-layout items. */
 
@@ -769,6 +787,21 @@ inline bool Layout::red_alert() const
 inline void Layout::red_alert_set(bool red_alert)
 {
   redalert_ = red_alert;
+}
+
+inline void Layout::bg_color_get(float r_color[4]) const
+{
+  r_color[0] = bg_color_[0];
+  r_color[1] = bg_color_[1];
+  r_color[2] = bg_color_[2];
+  r_color[3] = bg_color_[3];
+}
+inline void Layout::bg_color_set(const float color[4])
+{
+  bg_color_[0] = color[0];
+  bg_color_[1] = color[1];
+  bg_color_[2] = color[2];
+  bg_color_[3] = color[3];
 }
 
 inline float Layout::search_weight() const
