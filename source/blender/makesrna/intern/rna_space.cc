@@ -5886,6 +5886,29 @@ static void rna_def_space_view3d(BlenderRNA *brna)
   rna_def_space_view3d_shading(brna);
   rna_def_space_view3d_overlay(brna);
 
+  /* BEGIN CD_CURSOR PATCH — expose per-viewport CD cursor state to
+   * Python. The Curve Designer addon flips `cd_cursor_active` and
+   * writes `cd_cursor_location` when the user places its per-viewport
+   * cursor. overlay_cursor.hh reads both and draws a green variant of
+   * the native cursor at that position. */
+  prop = RNA_def_property(srna, "cd_cursor_active", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, nullptr, "cd_cursor_active", 1);
+  RNA_def_property_ui_text(prop,
+                           "CD Cursor Active",
+                           "Show a per-viewport Curve Designer 3D cursor "
+                           "at cd_cursor_location, independent of scene.cursor");
+  RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, nullptr);
+
+  prop = RNA_def_property(srna, "cd_cursor_location", PROP_FLOAT, PROP_XYZ);
+  RNA_def_property_float_sdna(prop, nullptr, "cd_cursor_location");
+  RNA_def_property_array(prop, 3);
+  RNA_def_property_ui_text(prop,
+                           "CD Cursor Location",
+                           "World-space position of the per-viewport "
+                           "Curve Designer 3D cursor");
+  RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, nullptr);
+  /* END CD_CURSOR PATCH */
+
   /* *** Animated *** */
   RNA_define_animate_sdna(true);
   /* region */

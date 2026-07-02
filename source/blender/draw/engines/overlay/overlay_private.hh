@@ -355,6 +355,10 @@ class ShapeCache {
 
   BatchPtr cursor_circle;
   BatchPtr cursor_lines;
+  /* BEGIN CD_CURSOR PATCH — green-tinted duplicate of cursor_circle
+   * used by the per-viewport CD cursor draw path. */
+  BatchPtr cursor_circle_green;
+  /* END CD_CURSOR PATCH */
 
   BatchPtr quad_wire;
   BatchPtr quad_solid;

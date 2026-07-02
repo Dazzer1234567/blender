@@ -1330,6 +1330,28 @@ ShapeCache::ShapeCache()
     cursor_circle = BatchPtr(GPU_batch_create_ex(
         GPU_PRIM_LINE_STRIP, vbo_from_vector(verts), nullptr, GPU_BATCH_OWNS_VBO));
   }
+  /* BEGIN CD_CURSOR PATCH — cursor circle (green variant).
+   * Identical geometry to cursor_circle but with green as the primary
+   * accent so the per-viewport CD cursor is visually distinct from
+   * the native red 3D cursor. */
+  {
+    const int segments = 12;
+    const float radius = 0.5f;
+    const float color_primary[3] = {0.05f, 0.85f, 0.35f};
+    const float color_secondary[3] = {1.0f, 1.0f, 1.0f};
+
+    Vector<VertexWithColor> verts;
+
+    for (int i = 0; i < segments + 1; i++) {
+      float angle = float(2 * M_PI) * (float(i) / float(segments));
+      verts.append({radius * float3(cosf(angle), sinf(angle), 0.0f),
+                    (i % 2 == 0) ? color_secondary : color_primary});
+    }
+
+    cursor_circle_green = BatchPtr(GPU_batch_create_ex(
+        GPU_PRIM_LINE_STRIP, vbo_from_vector(verts), nullptr, GPU_BATCH_OWNS_VBO));
+  }
+  /* END CD_CURSOR PATCH */
   /* cursor lines */
   {
     const float outer_limit = 1.0f;

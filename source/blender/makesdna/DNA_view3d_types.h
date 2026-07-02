@@ -793,6 +793,16 @@ struct View3D {
   /** Path to the viewer node that is currently previewed. This is retrieved from the workspace. */
   ViewerPath viewer_path;
 
+  /* BEGIN CD_CURSOR PATCH — Curve Designer fork addition.
+   * Per-viewport CD cursor state driven by the CD addon; drawn as a
+   * green-tinted variant of the native cursor by overlay_cursor.hh.
+   * Total 24 bytes (multiple of 8) so `runtime` stays 8-byte aligned. */
+  char cd_cursor_active = 0;
+  char _pad_cd_cursor0[3] = {};
+  float cd_cursor_location[3] = {0.0f, 0.0f, 0.0f};
+  float _pad_cd_cursor1[2] = {0.0f, 0.0f};
+  /* END CD_CURSOR PATCH */
+
   /** Runtime evaluation data (keep last). */
   View3D_Runtime runtime;
 };
