@@ -142,6 +142,17 @@ bool button_has_array_value(const Button *but)
 }
 
 static wmOperatorType *g_ot_tool_set_by_id = nullptr;
+/* BEGIN CD_TOOLBAR PATCH — cache for the Curve Designer addon's
+ * toggle operator so buttons that use it get the same toolbar-icon
+ * treatment as `wm.tool_set_by_id`. Without this, our per-area
+ * gizmo toggle buttons (Move / Rotate / Scale in the CD tool
+ * strip) render icons at ICON_DEFAULT_HEIGHT (16px) instead of
+ * ICON_DEFAULT_HEIGHT_TOOLBAR (32px), so their icons appear at
+ * half size floating in an otherwise full-width tool button. See
+ * `cd_toolbar.py` for the addon side. Cleared alongside the stock
+ * cache in `interface_tag_script_reload_queries` below. */
+static wmOperatorType *g_ot_cdbt_toggle_header_button = nullptr;
+/* END CD_TOOLBAR PATCH */
 bool but_is_tool(const Button *but)
 {
   /* very evil! */
@@ -152,6 +163,15 @@ bool but_is_tool(const Button *but)
     if (but->optype == g_ot_tool_set_by_id) {
       return true;
     }
+    /* BEGIN CD_TOOLBAR PATCH */
+    if (g_ot_cdbt_toggle_header_button == nullptr) {
+      g_ot_cdbt_toggle_header_button = WM_operatortype_find(
+          "CDBT_OT_toggle_header_button", false);
+    }
+    if (but->optype == g_ot_cdbt_toggle_header_button) {
+      return true;
+    }
+    /* END CD_TOOLBAR PATCH */
   }
   return false;
 }
@@ -893,6 +913,11 @@ ARegion *screen_region_find_mouse_over(bScreen *screen, const wmEvent *event)
 void interface_tag_script_reload_queries()
 {
   g_ot_tool_set_by_id = nullptr;
+  /* BEGIN CD_TOOLBAR PATCH — clear the CD-toolbar operator cache
+   * on Reload Scripts too, otherwise a stale pointer to a
+   * previously-registered operator survives across reloads. */
+  g_ot_cdbt_toggle_header_button = nullptr;
+  /* END CD_TOOLBAR PATCH */
 }
 
 /** \} */
