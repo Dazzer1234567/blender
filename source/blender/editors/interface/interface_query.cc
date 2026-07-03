@@ -142,15 +142,25 @@ bool button_has_array_value(const Button *but)
 }
 
 static wmOperatorType *g_ot_tool_set_by_id = nullptr;
-/* BEGIN CD_TOOLBAR PATCH — cache for the Curve Designer addon's
- * toggle operator so buttons that use it get the same toolbar-icon
- * treatment as `wm.tool_set_by_id`. Without this, our per-area
- * gizmo toggle buttons (Move / Rotate / Scale in the CD tool
- * strip) render icons at ICON_DEFAULT_HEIGHT (16px) instead of
- * ICON_DEFAULT_HEIGHT_TOOLBAR (32px), so their icons appear at
- * half size floating in an otherwise full-width tool button. See
- * `cd_toolbar.py` for the addon side. Cleared alongside the stock
- * cache in `interface_tag_script_reload_queries` below. */
+/* BEGIN CD_TOOLBAR PATCH — recognise the Curve Designer addon's
+ * button operators as tool buttons so they get the 32px toolbar
+ * icon size + BUT_ICON_LEFT alignment that `wm.tool_set_by_id`
+ * enjoys. Two families:
+ *
+ *   `CDBT_OT_toggle_header_button`   — per-area gizmo toggles
+ *                                      (Move / Rotate / Scale).
+ *   `CDBT_OT_toolbar_*`              — click handlers our custom
+ *                                      T-panel uses in place of
+ *                                      `wm.tool_set_by_id` when we
+ *                                      need to catch modifier
+ *                                      keys (Ctrl-click on the CD
+ *                                      Cursor button, etc).
+ *
+ * The specific toggle op is cached by pointer; the `toolbar_*`
+ * family uses a prefix compare on the optype idname so we don't
+ * have to add each new one to this list by hand. Cache cleared in
+ * `interface_tag_script_reload_queries` alongside the stock
+ * cache. See addon `cd_toolbar.py` / `cd_cursor.py`. */
 static wmOperatorType *g_ot_cdbt_toggle_header_button = nullptr;
 /* END CD_TOOLBAR PATCH */
 bool but_is_tool(const Button *but)
@@ -169,6 +179,12 @@ bool but_is_tool(const Button *but)
           "CDBT_OT_toggle_header_button", false);
     }
     if (but->optype == g_ot_cdbt_toggle_header_button) {
+      return true;
+    }
+    /* Prefix compare covers every future `CDBT_OT_toolbar_*`
+     * click handler without a per-op cache. Cheap — a couple of
+     * bytes compared per button draw. */
+    if (STRPREFIX(but->optype->idname, "CDBT_OT_toolbar_")) {
       return true;
     }
     /* END CD_TOOLBAR PATCH */
