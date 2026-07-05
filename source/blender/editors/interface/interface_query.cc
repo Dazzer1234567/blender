@@ -156,12 +156,17 @@ static wmOperatorType *g_ot_tool_set_by_id = nullptr;
  *                                      keys (Ctrl-click on the CD
  *                                      Cursor button, etc).
  *
- * The specific toggle op is cached by pointer; the `toolbar_*`
- * family uses a prefix compare on the optype idname so we don't
- * have to add each new one to this list by hand. Cache cleared in
- * `interface_tag_script_reload_queries` alongside the stock
- * cache. See addon `cd_toolbar.py` / `cd_cursor.py`. */
-static wmOperatorType *g_ot_cdbt_toggle_header_button = nullptr;
+ * Both families are matched by idname string compare (cheap — a
+ * few bytes per button draw). We used to cache the toggle op by
+ * pointer, but the pointer goes stale whenever the addon
+ * unregisters / re-registers the operator class (any reload cycle
+ * — Reload Scripts, disable+enable, live edit), and there is no
+ * hook we can trigger from Python to invalidate the cache. A
+ * stale-cache scenario left M/R/S buttons rendering as regular
+ * 16px icons in the top-left of the toolbar cell instead of the
+ * centered 32px tool-strip icon — the exact regression this patch
+ * is meant to prevent. String compare avoids the pointer-cache
+ * lifecycle problem entirely. See addon `cd_toolbar.py`. */
 /* END CD_TOOLBAR PATCH */
 bool but_is_tool(const Button *but)
 {
@@ -173,17 +178,11 @@ bool but_is_tool(const Button *but)
     if (but->optype == g_ot_tool_set_by_id) {
       return true;
     }
-    /* BEGIN CD_TOOLBAR PATCH */
-    if (g_ot_cdbt_toggle_header_button == nullptr) {
-      g_ot_cdbt_toggle_header_button = WM_operatortype_find(
-          "CDBT_OT_toggle_header_button", false);
-    }
-    if (but->optype == g_ot_cdbt_toggle_header_button) {
+    /* BEGIN CD_TOOLBAR PATCH — string compare so the check is
+     * immune to addon reload cycles (see block comment above). */
+    if (STREQ(but->optype->idname, "CDBT_OT_toggle_header_button")) {
       return true;
     }
-    /* Prefix compare covers every future `CDBT_OT_toolbar_*`
-     * click handler without a per-op cache. Cheap — a couple of
-     * bytes compared per button draw. */
     if (STRPREFIX(but->optype->idname, "CDBT_OT_toolbar_")) {
       return true;
     }
@@ -929,11 +928,9 @@ ARegion *screen_region_find_mouse_over(bScreen *screen, const wmEvent *event)
 void interface_tag_script_reload_queries()
 {
   g_ot_tool_set_by_id = nullptr;
-  /* BEGIN CD_TOOLBAR PATCH — clear the CD-toolbar operator cache
-   * on Reload Scripts too, otherwise a stale pointer to a
-   * previously-registered operator survives across reloads. */
-  g_ot_cdbt_toggle_header_button = nullptr;
-  /* END CD_TOOLBAR PATCH */
+  /* CD_TOOLBAR PATCH used to also clear
+   * `g_ot_cdbt_toggle_header_button` here — the addon check no
+   * longer caches a pointer, so nothing to clear. */
 }
 
 /** \} */
