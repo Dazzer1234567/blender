@@ -698,6 +698,22 @@ static void rna_def_region(BlenderRNA *brna)
       "support this feature (NOTE: these categories are generated at runtime, so list may be "
       "empty at initialization, before any drawing took place)");
 
+  /* CD-FORK: expose runtime panel instances so tools can iterate them
+   * to inspect / mutate per-instance state (e.g. `is_open` for fold
+   * state). Backing `ARegion.panels` is a ListBase of Panel structs
+   * built as panels draw — a region has no entries until the first
+   * draw of its owning area. Read-only collection; mutate the
+   * individual Panel's own properties (like `is_open`) to change
+   * state. */
+  prop = RNA_def_property(srna, "panels", PROP_COLLECTION, PROP_NONE);
+  RNA_def_property_collection_sdna(prop, nullptr, "panels", nullptr);
+  RNA_def_property_struct_type(prop, "Panel");
+  RNA_def_property_ui_text(
+      prop,
+      "Panels",
+      "Runtime panel instances hosted in this region. Populated as panels draw; "
+      "iterate to read / write per-instance state such as `is_open`");
+
   rna_def_region_api(srna);
 }
 

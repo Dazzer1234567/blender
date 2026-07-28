@@ -1384,6 +1384,17 @@ static void rna_Panel_bl_description_set(PointerRNA *ptr, const char *value)
   }
 }
 
+/* CD-FORK: null-check on `panel->type` so callers iterating stale
+ * `Region.panels` (left over after an add-on reload freed the
+ * matching PanelType) can filter them out without dereferencing
+ * dangling pointers. Returns True only when the underlying
+ * PanelType is still alive. */
+static bool rna_Panel_is_valid_get(PointerRNA *ptr)
+{
+  const Panel *pa = static_cast<const Panel *>(ptr->data);
+  return pa != nullptr && pa->type != nullptr;
+}
+
 static void rna_Menu_bl_description_set(PointerRNA *ptr, const char *value)
 {
   Menu *data = static_cast<Menu *>(ptr->data);
@@ -2015,6 +2026,36 @@ static void rna_def_panel(BlenderRNA *brna)
   RNA_def_property_boolean_sdna(prop, nullptr, "flag", PNL_POPOVER);
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
   RNA_def_property_ui_text(prop, "Popover", "");
+
+  /* CD-FORK: per-instance panel fold state. Inverse of `PNL_CLOSED` so
+   * `is_open == True` reads as "the panel is currently expanded". Read
+   * and write both go directly against the runtime `Panel.flag` bit —
+   * writers are responsible for tagging the owning region for redraw
+   * (NC_WINDOW is broad enough that any panel-toggle refreshes it).
+   * Exposed so tools like Mirror-UI can snapshot / restore fold state
+   * across viewports; upstream Blender doesn't expose this. */
+  prop = RNA_def_property(srna, "is_open", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_negative_sdna(prop, nullptr, "flag", PNL_CLOSED);
+  RNA_def_property_ui_text(
+      prop, "Open", "Whether this panel instance is currently expanded (True) or collapsed (False)");
+  RNA_def_property_update(prop, NC_WINDOW, nullptr);
+
+  /* CD-FORK: True when this Panel instance's backing PanelType is
+   * still alive. A Panel whose owning add-on unregistered before
+   * the region's next draw pass keeps its ListBase entry (the type
+   * dangles until the next redraw prunes it) — accessing any
+   * `type->*` string on it dereferences NULL and crashes.
+   * Callers iterating `Region.panels` should test this first and
+   * skip invalid entries. */
+  prop = RNA_def_property(srna, "is_valid", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_funcs(prop, "rna_Panel_is_valid_get", nullptr);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_ui_text(
+      prop,
+      "Valid",
+      "True when the panel's backing type is still alive; False for a stale "
+      "runtime instance whose owner has been unregistered (touching its "
+      "type-derived properties like bl_idname would crash)");
 }
 
 static void rna_def_uilist(BlenderRNA *brna)
