@@ -1186,9 +1186,19 @@ static void region_azone_edge(const ScrArea *area, AZone *az, const ARegion *reg
   const float aspect = BLI_rctf_size_y(&region->v2d.cur) /
                        (BLI_rcti_size_y(&region->v2d.mask) + 1);
 
+  /* Curve Designer editor uses a wider (2x) resize zone so the
+   * horizontal dividers between its three panes are easier to grab.
+   * Header-narrow regions still get their original small zone so
+   * they don't interfere with header widgets. */
+  const float cd_scale = (area && area->spacetype == SPACE_CURVE_DESIGNER &&
+                          !is_narrow) ?
+                             2.0f :
+                             1.0f;
+
   /* Different padding inside and outside the region. */
-  const int pad_out = (is_narrow ? 2.0f : 3.0f) * UI_SCALE_FAC;
-  const int pad_in = (is_narrow ? 1.0f : (transparent ? 8.0f : 4.0f)) * UI_SCALE_FAC / aspect;
+  const int pad_out = (is_narrow ? 2.0f : 3.0f) * cd_scale * UI_SCALE_FAC;
+  const int pad_in = (is_narrow ? 1.0f : (transparent ? 8.0f : 4.0f)) * cd_scale *
+                     UI_SCALE_FAC / aspect;
 
   switch (az->edge) {
     case AE_TOP_TO_BOTTOMRIGHT:

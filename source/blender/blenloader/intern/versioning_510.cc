@@ -927,6 +927,54 @@ void blo_do_versions_510(FileData * /*fd*/, Library * /*lib*/, Main *bmain)
     }
   }
 
+  /* Curve Designer editor: ensure the top UI region exists on every
+   * saved SpaceCurveDesigner. The region was added after the initial
+   * space definition, so existing workspaces / .blend files were
+   * saved with only HEADER + WINDOW. `curve_designer_create` only
+   * fires for brand-new areas, so without this patch the top strip
+   * would be missing on loaded files until the user manually
+   * recreates the CD area. Idempotent — `do_versions_add_region_if_
+   * not_found` returns nullptr if the region already exists, so the
+   * unconditional-loop shape is safe to run every load.
+   *
+   * Kept outside a MAIN_VERSION_FILE_ATLEAST gate deliberately:
+   * bumping the sub-version is a repo-wide change we don't need
+   * here, and the idempotent check makes it a no-op after first
+   * successful add. */
+  for (bScreen &screen : bmain->screens) {
+    for (ScrArea &area : screen.areabase) {
+      for (SpaceLink &sl : area.spacedata) {
+        if (sl.spacetype == SPACE_CURVE_DESIGNER) {
+          ListBaseT<ARegion> *regionbase = (&sl == area.spacedata.first) ?
+                                               &area.regionbase :
+                                               &sl.regionbase;
+          ARegion *new_ui = do_versions_add_region_if_not_found(
+              regionbase,
+              RGN_TYPE_UI,
+              "curve designer top UI region",
+              RGN_TYPE_HEADER);
+          if (new_ui) {
+            new_ui->alignment = RGN_ALIGN_TOP;
+            new_ui->sizey = 200;
+          }
+          /* Bottom TOOLS strip — third pane below the WINDOW region.
+           * Linked after HEADER so it comes early in the regionbase,
+           * but its BOTTOM alignment puts it visually at the bottom
+           * of the area. */
+          ARegion *new_tools = do_versions_add_region_if_not_found(
+              regionbase,
+              RGN_TYPE_TOOLS,
+              "curve designer bottom TOOLS region",
+              RGN_TYPE_HEADER);
+          if (new_tools) {
+            new_tools->alignment = RGN_ALIGN_BOTTOM;
+            new_tools->sizey = 150;
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Always bump subversion in BKE_blender_version.h when adding versioning
    * code here, and wrap it inside a MAIN_VERSION_FILE_ATLEAST check.
