@@ -4780,6 +4780,19 @@ void LayoutInternal::init_from_parent(Layout *litem, Layout *layout, int align)
   litem->emboss_ = layout->emboss_;
   litem->flag_ = (layout->flag_ & (ItemInternalFlag::PropSep | ItemInternalFlag::PropDecorate |
                                    ItemInternalFlag::InsidePropSep));
+  /* Fork addition: propagate the parent's per-row background tint
+   * (set via Python `row.color = (...)`) to child sub-layouts. Without
+   * this, a `row.color = orange; row.row().operator(...)` pattern
+   * would paint no tint on the inner button — the sub-row would start
+   * with a default (transparent) bg_color and the button would
+   * inherit that instead. Inheriting here lets nested layout wrappers
+   * (used to break the auto-fixed-size bubble for column alignment,
+   * see `space_curve_designer.py`) still receive the row highlight. */
+  {
+    float bg[4];
+    layout->bg_color_get(bg);
+    litem->bg_color_set(bg);
+  }
 
   if (layout->child_items_layout_) {
     layout->child_items_layout_->items_.append(litem);
@@ -4954,6 +4967,29 @@ Layout &Layout::column(bool align, const StringRef heading)
 {
   Layout &litem = this->column(align);
   litem.heading_ = heading;
+  return litem;
+}
+
+Layout &Layout::fixed_column(float width_units, bool align)
+{
+  Layout &litem = this->column(align);
+  litem.ui_units_x_set(width_units);
+  /* Lock the width against the parent row's resolve-pass redistribution
+   * (`LayoutRow::resolve_impl` -> `ui_item_fit`). Without FixedSize set,
+   * `ui_units_x` acts only as an estimate — content variance in a
+   * sibling column can still shift this column's actual pixel width.
+   * Matches the pattern used by `uiLayoutListItemAddPadding` for the
+   * built-in `uiTemplateList` rows, which are pixel-perfect for the
+   * same reason. */
+  litem.fixed_size_set(true);
+  return litem;
+}
+
+Layout &Layout::fixed_row(float width_units, bool align)
+{
+  Layout &litem = this->row(align);
+  litem.ui_units_x_set(width_units);
+  litem.fixed_size_set(true);
   return litem;
 }
 

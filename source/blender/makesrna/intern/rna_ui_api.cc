@@ -916,6 +916,16 @@ static Layout *rna_uiLayoutColumnFlow(Layout *layout, int number, bool align)
   return &layout->column_flow(number, align);
 }
 
+static Layout *rna_uiLayoutFixedColumn(Layout *layout, float width_units, bool align)
+{
+  return &layout->fixed_column(width_units, align);
+}
+
+static Layout *rna_uiLayoutFixedRow(Layout *layout, float width_units, bool align)
+{
+  return &layout->fixed_row(width_units, align);
+}
+
 static Layout *rna_uiLayoutGridFlow(
     Layout *layout, bool row_major, int columns_len, bool even_columns, bool even_rows, bool align)
 {
@@ -1388,6 +1398,32 @@ void RNA_api_ui_layout(StructRNA *srna)
   parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
   RNA_def_function_return(func, parm);
   RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
+
+  func = RNA_def_function(srna, "fixed_column", "rna_uiLayoutFixedColumn");
+  RNA_def_function_ui_description(
+      func,
+      "Sub-layout with its width locked to `width_units` UI-units, "
+      "regardless of child content. Guarantees pixel-consistent "
+      "column widths across sibling rows.");
+  parm = RNA_def_float(
+      func, "width_units", 1.0f, 0.0f, 1000.0f, "", "Width in UI units", 0.0f, 1000.0f);
+  RNA_def_parameter_flags(parm, PropertyFlag(0), PARM_REQUIRED);
+  RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
+  parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
+  RNA_def_function_return(func, parm);
+
+  func = RNA_def_function(srna, "fixed_row", "rna_uiLayoutFixedRow");
+  RNA_def_function_ui_description(
+      func,
+      "Sub-layout with its width locked to `width_units` UI-units, "
+      "regardless of child content. Horizontal counterpart to "
+      "`fixed_column`.");
+  parm = RNA_def_float(
+      func, "width_units", 1.0f, 0.0f, 1000.0f, "", "Width in UI units", 0.0f, 1000.0f);
+  RNA_def_parameter_flags(parm, PropertyFlag(0), PARM_REQUIRED);
+  RNA_def_boolean(func, "align", false, "", "Align buttons to each other");
+  parm = RNA_def_pointer(func, "layout", "UILayout", "", "Sub-layout to put items in");
+  RNA_def_function_return(func, parm);
 
   func = RNA_def_function(srna, "grid_flow", "rna_uiLayoutGridFlow");
   RNA_def_boolean(func, "row_major", false, "", "Fill row by row, instead of column by column");

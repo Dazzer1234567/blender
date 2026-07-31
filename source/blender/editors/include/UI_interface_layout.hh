@@ -294,6 +294,24 @@ struct Layout : public Item, NonCopyable, NonMovable {
   Layout &column(bool align, StringRef heading);
 
   /**
+   * Add a new column sub-layout with its width forced to `width_units`
+   * UI-units regardless of child content. Same as calling `column()`
+   * then `ui_units_x_set(width_units)`, provided as a shorthand so
+   * fixed-column table layouts read cleanly at the call site
+   * (used e.g. by the Curve Designer Layers tree, where every row
+   * needs its icons to sit in identical columns so names line up
+   * pixel-perfect across rows).
+   */
+  Layout &fixed_column(float width_units, bool align);
+
+  /**
+   * Add a new row sub-layout with its width forced to `width_units`
+   * UI-units regardless of child content. See `fixed_column` — same
+   * behaviour, horizontal instead of vertical.
+   */
+  Layout &fixed_row(float width_units, bool align);
+
+  /**
    * Add a new row sub-layout, items placed in this sub-layout are added horizontally next to each
    * other in row.
    */
