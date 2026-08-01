@@ -758,13 +758,14 @@ static StructRNA *rna_Space_refine(PointerRNA *ptr)
       return RNA_SpaceClipEditor;
     case SPACE_SPREADSHEET:
       return RNA_SpaceSpreadsheet;
+    case SPACE_CURVE_DESIGNER:
+      return RNA_SpaceCurveDesigner;
 
       /* Currently no type info. */
     case SPACE_SCRIPT:
     case SPACE_EMPTY:
     case SPACE_TOPBAR:
     case SPACE_STATUSBAR:
-    case SPACE_CURVE_DESIGNER:
       break;
   }
 
@@ -8069,6 +8070,22 @@ static void rna_def_space_info(BlenderRNA *brna)
   RNA_def_property_update(prop, NC_SPACE | ND_SPACE_INFO_REPORT, nullptr);
 }
 
+/* Fork addition: minimal Python-facing RNA class for the Curve
+ * Designer editor. Without it, `bpy.types.SpaceCurveDesigner` doesn't
+ * exist and `Space.draw_handler_add('CURVE_DESIGNER', ...)` errors
+ * with "unknown space type". The struct itself has no exposed props
+ * yet (per-editor state lives in region->v2d and area_selection.py
+ * per-area dicts); this exists purely so Python can attach draw
+ * handlers to CD editor regions. */
+static void rna_def_space_curve_designer(BlenderRNA *brna)
+{
+  StructRNA *srna;
+
+  srna = RNA_def_struct(brna, "SpaceCurveDesigner", "Space");
+  RNA_def_struct_sdna(srna, "SpaceCurveDesigner");
+  RNA_def_struct_ui_text(srna, "Space Curve Designer", "Curve Designer editor space data");
+}
+
 static void rna_def_space_userpref(BlenderRNA *brna)
 {
   static const EnumPropertyItem filter_type_items[] = {
@@ -9352,6 +9369,7 @@ void RNA_def_space(BlenderRNA *brna)
   rna_def_space_node(brna);
   rna_def_space_clip(brna);
   rna_def_space_spreadsheet(brna);
+  rna_def_space_curve_designer(brna);
 }
 
 }  // namespace blender

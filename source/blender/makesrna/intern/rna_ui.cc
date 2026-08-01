@@ -1501,6 +1501,17 @@ static void rna_UILayout_alignment_set(PointerRNA *ptr, int value)
   ptr->data_as<Layout>()->alignment_set(ui::LayoutAlign(value));
 }
 
+/* Fork addition: read/write the NoAutoFix flag via `layout.auto_fixed_size`. */
+static bool rna_UILayout_auto_fixed_size_get(PointerRNA *ptr)
+{
+  return ptr->data_as<const Layout>()->auto_fixed_size();
+}
+
+static void rna_UILayout_auto_fixed_size_set(PointerRNA *ptr, bool value)
+{
+  ptr->data_as<Layout>()->auto_fixed_size_set(value);
+}
+
 static int rna_UILayout_direction_get(PointerRNA *ptr)
 {
   return int(ptr->data_as<const Layout>()->local_direction());
@@ -1790,6 +1801,21 @@ static void rna_def_ui_layout(BlenderRNA *brna)
   RNA_def_property_enum_items(prop, alignment_items);
   RNA_def_property_enum_funcs(
       prop, "rna_UILayout_alignment_get", "rna_UILayout_alignment_set", nullptr);
+
+  /* Fork addition — opt-out of the auto-fixed-size promotion applied
+   * to non-Expand-aligned containers by `ui_text_icon_width_ex`. Set
+   * False on a container that must LEFT/RIGHT/CENTER-align its inner
+   * content but still expand to fill its parent row. */
+  prop = RNA_def_property(srna, "auto_fixed_size", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_funcs(
+      prop, "rna_UILayout_auto_fixed_size_get", "rna_UILayout_auto_fixed_size_set");
+  RNA_def_property_ui_text(
+      prop,
+      "Auto Fixed Size",
+      "When True (default) a non-Expand-aligned container is auto-marked "
+      "fixed-size once it contains a text/icon button, locking its width to "
+      "the content. Set False to keep the container as a 'free' item so the "
+      "parent row can redistribute space to it during resolve");
 
   prop = RNA_def_property(srna, "direction", PROP_ENUM, PROP_NONE);
   RNA_def_property_enum_items(prop, direction_items);

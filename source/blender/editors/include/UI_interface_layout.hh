@@ -76,6 +76,16 @@ struct Item {
   [[nodiscard]] bool fixed_size() const;
   void fixed_size_set(bool fixed_size);
 
+  /* Fork addition: opt-out of the auto-fixed-size promotion that
+   * `ui_text_icon_width_ex` applies to any non-Expand-aligned container.
+   * Default true (matches Blender's historical behavior); set to false
+   * on a container whose width should stay content-driven-but-not-locked
+   * so its parent row can still redistribute space to it during the
+   * resolve pass. Used by CD editor row layouts where the name column
+   * must LEFT-align its text yet also expand to fill remaining width. */
+  [[nodiscard]] bool auto_fixed_size() const;
+  void auto_fixed_size_set(bool auto_fixed_size);
+
   [[nodiscard]] ItemType type() const;
 
   [[nodiscard]] int2 size() const;

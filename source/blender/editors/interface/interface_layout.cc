@@ -134,6 +134,11 @@ enum class ItemInternalFlag : uint8_t {
    * Enabled by default, depends on 'ItemInternalFlag::PropSep'. */
   PropDecorate = 1 << 5,
   PropDecorateNoPad = 1 << 6,
+  /* Fork addition: suppress the auto-fixed-size promotion in
+   * `ui_text_icon_width_ex`. Set on containers that must LEFT/RIGHT/
+   * CENTER-align inner content but still participate as a "free" item
+   * in the parent row's resolve pass. See `Layout::auto_fixed_size_set`. */
+  NoAutoFix = 1 << 7,
 };
 ENUM_OPERATORS(ItemInternalFlag)
 
@@ -440,7 +445,16 @@ static int ui_text_icon_width_ex(Layout *layout,
       return unit_x * (1.0f + pad_factor.icon_only);
     }
 
-    if (layout->alignment() != LayoutAlign::Expand) {
+    /* Fork: gate the auto-fixed-size promotion on the per-layout
+     * NoAutoFix flag. When Python has explicitly disabled auto-fix via
+     * `layout.auto_fixed_size = False`, this container is left as a
+     * "free" item so its parent row can redistribute space to it
+     * during the resolve pass. Without this gate, ANY non-Expand-
+     * aligned container that contains a text/icon button gets marked
+     * fixed at its content's natural width, which then bubbles up
+     * through the enclosing rows and breaks trailing-column alignment
+     * across sibling rows with different text lengths. */
+    if (layout->alignment() != LayoutAlign::Expand && layout->auto_fixed_size()) {
       layout->fixed_size_set(true);
     }
 
@@ -5703,6 +5717,19 @@ void Item::fixed_size_set(bool fixed_size)
 bool Item::fixed_size() const
 {
   return flag_is_set(flag_, ItemInternalFlag::FixedSize);
+}
+
+/* Fork addition: `auto_fixed_size` defaults to true (auto-fix enabled).
+ * Setting it false stores the NoAutoFix flag, which `ui_text_icon_width_ex`
+ * checks before promoting a non-Expand-aligned container to fixed_size. */
+void Item::auto_fixed_size_set(bool auto_fixed_size)
+{
+  SET_FLAG_FROM_TEST(flag_, !auto_fixed_size, ItemInternalFlag::NoAutoFix);
+}
+
+bool Item::auto_fixed_size() const
+{
+  return !flag_is_set(flag_, ItemInternalFlag::NoAutoFix);
 }
 
 void Layout::operator_context_set(wm::OpCallContext opcontext)
