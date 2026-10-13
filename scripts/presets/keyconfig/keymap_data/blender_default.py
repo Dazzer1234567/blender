@@ -6121,6 +6121,8 @@ def km_transform_modal_map(params):
         ("CONS_OFF", {"type": 'C', "value": 'PRESS'}, None),
         ("TRANSLATE", {"type": 'G', "value": 'PRESS'}, None),
         ("VERT_EDGE_SLIDE", {"type": 'G', "value": 'PRESS'}, None),
+        # Must come after the other `G` items so it only confirms when they don't apply.
+        ("CONFIRM", {"type": 'G', "value": 'PRESS'}, None),
         ("ROTATE", {"type": 'R', "value": 'PRESS'}, None),
         ("TRACKBALL", {"type": 'R', "value": 'PRESS'}, None),
         ("RESIZE", {"type": 'S', "value": 'PRESS'}, None),

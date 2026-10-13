@@ -19,6 +19,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_scene_types.h"
+
 #include "BLI_listbase.h"
 #include "BLI_string_utf8.h"
 #include "BLI_utildefines.h"
@@ -31,6 +33,8 @@
 
 #include "GPU_immediate.hh"
 #include "GPU_state.hh"
+
+#include "RNA_access.hh"
 
 #include "UI_resources.hh"
 
@@ -101,6 +105,38 @@ static SpaceLink *curve_designer_duplicate(SpaceLink *sl)
 }
 
 /**
+ * True when the addon's header tab strip (`Scene.cdbt_cd_tab`, a Python
+ * property) is on "Nodes". In that mode the editor is a single blank
+ * canvas: the top UI and bottom TOOLS panes are polled out and the
+ * WINDOW region draws no pane decoration. Read through RNA so a missing
+ * property (addon disabled) simply means "not in nodes mode".
+ */
+static bool curve_designer_nodes_tab_active(const bContext *C)
+{
+  Scene *scene = CTX_data_scene(C);
+  if (scene == nullptr) {
+    return false;
+  }
+  PointerRNA ptr = RNA_id_pointer_create(&scene->id);
+  PropertyRNA *prop = RNA_struct_find_property(&ptr, "cdbt_cd_tab");
+  if (prop == nullptr || RNA_property_type(prop) != PROP_ENUM) {
+    return false;
+  }
+  const char *identifier = nullptr;
+  const int value = RNA_property_enum_get(&ptr, prop);
+  if (!RNA_property_enum_identifier(const_cast<bContext *>(C), &ptr, prop, value, &identifier)) {
+    return false;
+  }
+  return STREQ(identifier, "NODES");
+}
+
+/* Poll for the top UI and bottom TOOLS panes: gone in nodes mode. */
+static bool curve_designer_side_region_poll(const RegionPollParams *params)
+{
+  return !curve_designer_nodes_tab_active(params->context);
+}
+
+/**
  * Draw a full-region tinted overlay on top of already-rendered
  * panel content. Uses `GPU_BLEND_ALPHA` so the panel text/widgets
  * behind stay readable. Colour is passed as `(r, g, b, a)` — keep
@@ -143,6 +179,15 @@ static void curve_designer_draw_region_tint(const ARegion *region, const float r
 static void curve_designer_window_region_draw(const bContext *C, ARegion *region)
 {
   ED_region_panels(C, region);
+
+  /* Nodes mode: blank canvas. The addon polls its WINDOW panels out,
+   * so the panel pass above only clears the background; skip the pane
+   * decoration and hand the region to Python draw handlers. */
+  if (curve_designer_nodes_tab_active(C)) {
+    wmOrtho2_region_pixelspace(region);
+    ED_region_draw_cb_draw(C, region, REGION_DRAW_POST_PIXEL);
+    return;
+  }
 
   /* Green tint — bottom pane. */
   const float green_tint[4] = {0.15f, 0.55f, 0.25f, 0.10f};
@@ -361,6 +406,7 @@ void ED_spacetype_curve_designer()
   art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
   art->init = ED_region_panels_init;
   art->draw = curve_designer_ui_region_draw;
+  art->poll = curve_designer_side_region_poll;
   art->listener = curve_designer_main_region_listener;
 
   BLI_addhead(&st->regiontypes, art);
@@ -375,6 +421,7 @@ void ED_spacetype_curve_designer()
   art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
   art->init = ED_region_panels_init;
   art->draw = curve_designer_tools_region_draw;
+  art->poll = curve_designer_side_region_poll;
   art->listener = curve_designer_main_region_listener;
 
   BLI_addhead(&st->regiontypes, art);
