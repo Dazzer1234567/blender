@@ -65,6 +65,7 @@
 #include "RNA_access.hh"
 
 #include "UI_interface.hh"
+#include "UI_resources.hh"
 
 #include "BLO_read_write.hh"
 
@@ -234,6 +235,19 @@ static SpaceLink *view3d_create(const ScrArea * /*area*/, const Scene *scene)
   BLI_addtail(&v3d->regionbase, region);
   region->regiontype = RGN_TYPE_TOOLS;
   region->alignment = RGN_ALIGN_LEFT;
+  region->flag = RGN_FLAG_HIDDEN;
+
+  /* Curve Designer panel: a right-hand strip drawn entirely by the
+   * add-on (see `view3d_cd_panel_region_draw`). Stored as a CHANNELS
+   * region, a type the 3D View doesn't otherwise use. Hidden until
+   * toggled (`SpaceView3D.show_region_channels`, P in the add-on).
+   * Before the sidebar, so it takes the right edge and the sidebar
+   * opens to its left rather than over it. */
+  region = BKE_area_region_new();
+
+  BLI_addtail(&v3d->regionbase, region);
+  region->regiontype = RGN_TYPE_CHANNELS;
+  region->alignment = RGN_ALIGN_RIGHT;
   region->flag = RGN_FLAG_HIDDEN;
 
   /* buttons/list view */
@@ -1136,6 +1150,26 @@ static void view3d_buttons_region_init(wmWindowManager *wm, ARegion *region)
   WM_event_add_keymap_handler(&region->runtime->handlers, keymap);
 }
 
+/* Curve Designer panel region: no Blender content of its own. It is
+ * cleared to the theme background and handed to Python POST_PIXEL draw
+ * handlers (`SpaceView3D.draw_handler_add(..., 'CHANNELS', 'POST_PIXEL')`),
+ * so the add-on is free to design it; the add-on also handles its
+ * mouse input. The 3D View's generic keys (N, T, ...) still work over
+ * it. */
+static void view3d_cd_panel_region_init(wmWindowManager *wm, ARegion *region)
+{
+  wmKeyMap *keymap = WM_keymap_ensure(
+      wm->runtime->defaultconf, "3D View Generic", SPACE_VIEW3D, RGN_TYPE_WINDOW);
+  WM_event_add_keymap_handler(&region->runtime->handlers, keymap);
+}
+
+static void view3d_cd_panel_region_draw(const bContext *C, ARegion *region)
+{
+  ED_region_clear(C, region, TH_BACK);
+  wmOrtho2_region_pixelspace(region);
+  ED_region_draw_cb_draw(C, region, REGION_DRAW_POST_PIXEL);
+}
+
 void ED_view3d_buttons_region_layout_ex(const bContext *C,
                                         ARegion *region,
                                         const char *category_override)
@@ -1647,6 +1681,15 @@ void ED_spacetype_view3d()
   BLI_addhead(&st->regiontypes, art);
 
   view3d_buttons_register(art);
+
+  /* regions: Curve Designer panel (see `view3d_cd_panel_region_draw`) */
+  art = MEM_new_zeroed<ARegionType>("spacetype view3d curve designer panel region");
+  art->regionid = RGN_TYPE_CHANNELS;
+  art->prefsizex = 320;
+  art->keymapflag = ED_KEYMAP_FRAMES;
+  art->init = view3d_cd_panel_region_init;
+  art->draw = view3d_cd_panel_region_draw;
+  BLI_addhead(&st->regiontypes, art);
 
   /* regions: tool(bar) */
   art = MEM_new_zeroed<ARegionType>("spacetype view3d tools region");

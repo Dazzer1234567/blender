@@ -5554,10 +5554,13 @@ static void rna_def_space_view3d(BlenderRNA *brna)
   RNA_def_struct_sdna(srna, "View3D");
   RNA_def_struct_ui_text(srna, "3D View Space", "3D View space data");
 
+  /* Curve Designer: CHANNELS is the add-on's panel region
+   * (`show_region_channels`). */
   rna_def_space_generic_show_region_toggles(srna,
                                             ((1 << RGN_TYPE_TOOL_HEADER) | (1 << RGN_TYPE_TOOLS) |
                                              (1 << RGN_TYPE_UI) | (1 << RGN_TYPE_HUD) |
-                                             (1 << RGN_TYPE_ASSET_SHELF)));
+                                             (1 << RGN_TYPE_ASSET_SHELF) |
+                                             (1 << RGN_TYPE_CHANNELS)));
 
   prop = RNA_def_property(srna, "camera", PROP_POINTER, PROP_NONE);
   RNA_def_property_flag(prop, PROP_EDITABLE);

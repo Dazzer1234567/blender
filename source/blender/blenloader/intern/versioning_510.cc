@@ -37,6 +37,7 @@
 #include "BKE_node.hh"
 #include "BKE_node_legacy_types.hh"
 #include "BKE_node_runtime.hh"
+#include "BKE_screen.hh"
 #include "BKE_tracking.hh"
 
 #include "SEQ_iterator.hh"
@@ -969,6 +970,40 @@ void blo_do_versions_510(FileData * /*fd*/, Library * /*lib*/, Main *bmain)
           if (new_tools) {
             new_tools->alignment = RGN_ALIGN_BOTTOM;
             new_tools->sizey = 150;
+          }
+        }
+      }
+    }
+  }
+
+  /* Curve Designer: every 3D View gets the "CD panel" region, a right-
+   * hand strip (stored as a CHANNELS region, which the 3D View doesn't
+   * otherwise use) drawn entirely by the add-on. Same idempotent,
+   * every-load shape as the block above: files and the startup file
+   * saved before the region existed get it, hidden, on load. */
+  for (bScreen &screen : bmain->screens) {
+    for (ScrArea &area : screen.areabase) {
+      for (SpaceLink &sl : area.spacedata) {
+        if (sl.spacetype == SPACE_VIEW3D) {
+          ListBaseT<ARegion> *regionbase = (&sl == area.spacedata.first) ?
+                                               &area.regionbase :
+                                               &sl.regionbase;
+          ARegion *new_panel = do_versions_add_region_if_not_found(
+              regionbase, RGN_TYPE_CHANNELS, "curve designer panel region", RGN_TYPE_UI);
+          if (new_panel) {
+            new_panel->alignment = RGN_ALIGN_RIGHT;
+            new_panel->flag = RGN_FLAG_HIDDEN;
+          }
+          /* Before the sidebar in the list, so the panel takes the
+           * area's right edge and the sidebar (an overlapping region)
+           * opens to its left instead of on top of it. */
+          ARegion *panel = BKE_region_find_in_listbase_by_type(regionbase, RGN_TYPE_CHANNELS);
+          ARegion *sidebar = BKE_region_find_in_listbase_by_type(regionbase, RGN_TYPE_UI);
+          if (panel && sidebar &&
+              BLI_findindex(regionbase, panel) > BLI_findindex(regionbase, sidebar))
+          {
+            BLI_remlink(regionbase, panel);
+            BLI_insertlinkbefore(regionbase, sidebar, panel);
           }
         }
       }
